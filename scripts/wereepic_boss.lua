@@ -212,7 +212,22 @@ local function track_trap(inst, trap)
     inst._traps[trap] = true
     inst:ListenForEvent("onremove", ontrapremoved, trap)
 end
+---stalker_atrium
+local function stalker_atrium_OnAttack(inst,data)
+    if data.attacker and data.attacker:HasTag("shadow_aligned") then
+        if not inst:HasTag("shadowdominance") then
+            inst:AddTag("shadowdominance")
+        end
+    end
+end
 
+local FINDMINIONS_MUST_TAGS = { "stalkerminion" }
+local FINDMINIONS_CANT_TAGS = { "NOCLICK" }
+local MINION_RADIUS = .3
+local function FindMinions(inst, proximity)
+    local x, y, z = inst.Transform:GetWorldPosition()
+    return TheSim:FindEntities(x, y, z, MINION_RADIUS + inst:GetPhysicsRadius(0) + (proximity or .5), FINDMINIONS_MUST_TAGS, FINDMINIONS_CANT_TAGS)
+end
 
 local WEREEPIC_BOSS = {
     deerclops = {
@@ -272,6 +287,7 @@ local WEREEPIC_BOSS = {
             inst:RemoveEventCallback("onhitother", Deerclops_OnHitOther)
         end,
     },
+
     bearger = {
         build = "bearger_build",
         bank = "bearger",
@@ -628,6 +644,11 @@ local WEREEPIC_BOSS = {
             if inst.components.debuffable and inst.components.debuffable:HasDebuff("dragonfly_enraged") then
                 inst.components.debuffable:RemoveDebuff("dragonfly_enraged")
             end
+
+            inst.SoundEmitter:KillSound("fireflying")
+            inst:RemoveTag("dragonfly_enraged")
+            inst.components.locomotor:RemoveExternalSpeedMultiplier(inst,"dragonfly_enraged_speed")
+            inst.components.propagator:StopSpreading()
 
             inst:RemoveEventCallback("attacked", dragonfly_OnAttacked)
             inst:RemoveEventCallback("onattackother", dragonfly_OnAttackOther)
@@ -1086,7 +1107,7 @@ local WEREEPIC_BOSS = {
 
         master_postinit = function (inst)
             inst.AnimState:AddOverrideBuild("stalker_atrium_build")
-
+            inst:AddTag("shadowdominance")
             inst:AddTag("epic_immune_freeze")
             inst:AddTag("epic_immune_sleep")
             inst:AddTag("epic_immune_electrocute")
@@ -1117,12 +1138,18 @@ local WEREEPIC_BOSS = {
             inst.components.epicscare:SetRange(TUNING.STALKER_EPICSCARE_RANGE)
 
             inst.bearger_recentlycharged = {}
+            inst.stalker_atrium_should_eat = inst:DoPeriodicTask(0.5,function()
+                if #FindMinions(inst) > 0 and inst.components.health:IsHurt() then
+                    inst:PushEvent("stalker_atrium_fossilfeast")
+                end
+            end)
 
+            inst:ListenForEvent("attacked",stalker_atrium_OnAttack)
         end,
 
         master_human = function (inst)
             inst.AnimState:ClearOverrideBuild("stalker_atrium_build")
-
+            inst:RemoveTag("shadowdominance")
             inst:RemoveTag("epic_immune_electrocute")
             inst:RemoveTag("epic_immune_sleep")
             inst:RemoveTag("epic_immune_freeze")
@@ -1137,6 +1164,198 @@ local WEREEPIC_BOSS = {
                 inst.components.combat:SetAreaDamage()
             end
 
+            if inst.stalker_atrium_should_eat then
+                inst.stalker_atrium_should_eat:Cancel()
+                inst.stalker_atrium_should_eat = nil
+            end
+
+            inst:RemoveEventCallback("attacked",stalker_atrium_OnAttack)
+        end
+    },
+
+    mutatedwarg = {
+        build = "warg_mutated_actions",
+        bank = "warg",
+        scale = 1,
+        phyrad = 1,
+        dyshadow = {2.5,1.5},
+        freezable = nil,
+        burnable = "swap_fire",
+        hurtsoundoverride = "dontstarve_DLC001/creatures/vargr/hit",
+        deathsoundoverride = "rifts3/mutated_varg/death",
+        music = "dontstarve/music/music_epicfight_gestalt_mutants",
+
+        oncollide = nil,
+        enablelunacy = true,
+
+        gogglevision = true,
+        health = TUNING.MUTATED_WARG_HEALTH*TUNING.EPIC_WORLD.HEALTH,
+        damage = TUNING.WARG_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
+        range = TUNING.WARG_ATTACKRANGE,
+
+        master_postinit = function (inst)
+            inst.Transform:SetSixFaced()
+
+            inst.AnimState:SetSymbolBloom("breath_02")
+			inst.AnimState:SetSymbolBrightness("breath_02", 1.5)
+
+            inst:AddTag("epic_immune_sleep")
+            inst:AddTag("epic_lunar")
+
+            inst:AddComponent("planarentity")
+            if inst.components.grogginess then
+                inst.components.grogginess:AddImmunitySource(inst)
+            end
+
+            if inst.components.planardamage then
+                inst.components.planardamage:SetBaseDamage(TUNING.MUTATED_WARG_PLANAR_DAMAGE)
+            end
+
+            inst.mutatedwarg_gestalt = SpawnPrefab("epic_mutatedwarg_gestaltflame_fx")
+			inst.mutatedwarg_gestalt.entity:SetParent(inst.entity)
+			inst.mutatedwarg_gestalt.Follower:FollowSymbol(inst.GUID, "swap_gestalt_flame", 0, 0, 0, true)
+		    local frames = inst.mutatedwarg_gestalt.AnimState:GetCurrentAnimationNumFrames()
+			local rnd = math.random(frames) - 1
+			inst.mutatedwarg_gestalt.AnimState:SetFrame(rnd)
+
+			inst.mutatedwarg_eyeL = SpawnPrefab("epic_mutatedwarg_eyeflame_fx")
+			inst.mutatedwarg_eyeL.entity:SetParent(inst.entity)
+			inst.mutatedwarg_eyeL.Follower:FollowSymbol(inst.GUID, "flameL", 0, 0, 0, true)
+			frames = inst.mutatedwarg_eyeL.AnimState:GetCurrentAnimationNumFrames()
+			rnd = math.random(frames) - 1
+			inst.mutatedwarg_eyeL.AnimState:SetFrame(rnd)
+
+			inst.mutatedwarg_eyeR = SpawnPrefab("epic_mutatedwarg_eyeflame_fx")
+			inst.mutatedwarg_eyeR.entity:SetParent(inst.entity)
+			inst.mutatedwarg_eyeR.Follower:FollowSymbol(inst.GUID, "flameR", 0, 0, 0, true)
+			rnd = (rnd + math.floor((0.35 + math.random() * 0.35) * frames)) % frames
+			inst.mutatedwarg_eyeR.AnimState:SetFrame(rnd)
+
+			inst.mutatedwarg_mouthL = SpawnPrefab("epic_mutatedwarg_mouthflame_fx")
+			inst.mutatedwarg_mouthL.entity:SetParent(inst.entity)
+			inst.mutatedwarg_mouthL.Follower:FollowSymbol(inst.GUID, "mouthflameL", 0, 0, 0, true)
+			frames = inst.mutatedwarg_mouthL.AnimState:GetCurrentAnimationNumFrames()
+			rnd = math.random(frames) - 1
+			inst.mutatedwarg_mouthL.AnimState:SetFrame(rnd)
+
+			inst.mutatedwarg_mouthR = SpawnPrefab("epic_mutatedwarg_mouthflame_fx")
+			inst.mutatedwarg_mouthR.entity:SetParent(inst.entity)
+			inst.mutatedwarg_mouthR.Follower:FollowSymbol(inst.GUID, "mouthflameR", 0, 0, 0, true)
+			rnd = (rnd + math.floor((0.35 + math.random() * 0.35) * frames)) % frames
+			inst.mutatedwarg_mouthR.AnimState:SetFrame(rnd)
+
+        end,
+
+        master_human = function (inst)
+            inst.Transform:SetFourFaced()
+
+            inst:RemoveTag("epic_immune_sleep")
+            inst:RemoveTag("epic_lunar")
+
+            inst:RemoveComponent("planarentity")
+            if inst.components.grogginess then
+                inst.components.grogginess:RemoveImmunitySource(inst)
+            end
+
+            if inst.components.planardamage then
+                inst.components.planardamage:SetBaseDamage(0)
+            end
+
+            if inst.mutatedwarg_gestalt then
+                inst.mutatedwarg_gestalt:Remove()
+                inst.mutatedwarg_gestalt = nil
+            end
+            if inst.mutatedwarg_eyeL then
+                inst.mutatedwarg_eyeL:Remove()
+                inst.mutatedwarg_eyeL = nil
+            end
+            if inst.mutatedwarg_eyeR then
+                inst.mutatedwarg_eyeR:Remove()
+                inst.mutatedwarg_eyeR = nil
+            end
+            if inst.mutatedwarg_mouthL then
+                inst.mutatedwarg_mouthL:Remove()
+                inst.mutatedwarg_mouthL = nil
+            end
+            if inst.mutatedwarg_mouthR then
+                inst.mutatedwarg_mouthR:Remove()
+                inst.mutatedwarg_mouthR = nil
+            end
+        end
+    },
+
+    mutatedbearger = {
+        build = "bearger_mutated",
+        bank = "bearger",
+        scale = 1,
+        phyrad = 1.5,
+        dyshadow = {6, 3.5},
+        freezable = "bearger_body",
+        hurtsoundoverride = "rifts3/mutated_bearger/hurt",
+        deathsoundoverride = "dontstarve_DLC001/creatures/bearger/death",
+        music = "dontstarve/music/music_epicfight_gestalt_mutants",
+
+        oncollide = bearger_oncollide,
+        enablelunacy = true,
+
+        gogglevision = true,
+        health = TUNING.MUTATED_BEARGER_HEALTH*TUNING.EPIC_WORLD.HEALTH,
+        damage = TUNING.MUTATED_BEARGER_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
+        range = TUNING.MUTATED_BEARGER_ATTACK_RANGE,
+
+        master_postinit = function (inst)
+            inst:AddTag("epic_immune_sleep")
+            inst:AddTag("epic_lunar")
+
+            inst:AddComponent("planarentity")
+            if inst.components.grogginess then
+                inst.components.grogginess:AddImmunitySource(inst)
+            end
+
+            if inst.components.planardamage then
+                inst.components.planardamage:SetBaseDamage()
+            end
+
+            inst:AddComponent("groundpounder")
+            inst.components.groundpounder:UseRingMode()
+            inst.components.groundpounder.destroyer = true
+            inst.components.groundpounder.damageRings = 3
+            inst.components.groundpounder.destructionRings = 3
+            inst.components.groundpounder.platformPushingRings = 3
+            inst.components.groundpounder.numRings = 3
+            inst.components.groundpounder.radiusStepDistance = 2
+            inst.components.groundpounder.ringWidth = 1.5
+            if TUNING.EPIC_WORLD.STRUCTURE_PROTECTION==1 then
+                table.insert(inst.components.groundpounder.noTags,"structure")
+                table.insert(inst.components.groundpounder.noTags,"wall")
+            end
+
+            inst.bearger_recentlycharged = {}
+
+            inst:ListenForEvent("onhitother", bearger_OnHitOther)
+        end,
+
+        master_human = function (inst)
+            inst:RemoveTag("bearger_run")
+            inst:RemoveTag("epic_immune_sleep")
+            inst:RemoveTag("epic_lunar")
+
+            inst:RemoveComponent("planarentity")
+            if inst.components.grogginess then
+                inst.components.grogginess:RemoveImmunitySource(inst)
+            end
+
+            if inst.components.planardamage then
+                inst.components.planardamage:SetBaseDamage(0)
+            end
+
+            inst:RemoveComponent("groundpounder")
+
+            if inst.components.locomotor then
+                inst.components.locomotor:RemoveExternalSpeedMultiplier(inst,"bearger_run_speed")
+            end
+
+            inst:RemoveEventCallback("onhitother", bearger_OnHitOther)
         end
     },
 }

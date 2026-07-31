@@ -17,6 +17,8 @@ PrefabFiles = {
     "epic_daywalker_head_fx",
     "epic_alterguardian_laser",
     "epic_alterguardian_phase3trap",
+    "stalker_fossil_spike2",
+    "epic_mutatedwarg_fx",
 }
 
 AddReplicableComponent("wereepic")

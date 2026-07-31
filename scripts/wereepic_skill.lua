@@ -1,13 +1,12 @@
-local function TransformCool(inst)
+local function TransformCool(inst,cooldown)
+    cooldown = cooldown or 1
     if inst.components.spellbookcooldowns then
-        inst.components.spellbookcooldowns:RestartSpellCooldown("epic_transform", 1)
+        inst.components.spellbookcooldowns:RestartSpellCooldown("epic_transform", cooldown)
     end
 end
 
 local function SkillCool(inst,skillnum,cooldown)
-    if cooldown==nil then
-        cooldown = 1
-    end
+    cooldown = cooldown or 1
     if inst.components.spellbookcooldowns then
         inst.components.spellbookcooldowns:RestartSpellCooldown("epic_skill"..tostring(skillnum), cooldown)
     end
@@ -513,24 +512,108 @@ local WEREEPIC_SKILL = {
 
         },
 
+        transform = function (inst)
+            if inst.components.debuffable then
+                inst.components.debuffable:AddDebuff("stalker_atrium_shield","buff_stalker_atrium_shield")
+            end
+            TransformCool(inst,20)
+        end,
+
         skill1 = function (inst)
-            if not inst.sg:HasAnyStateTag("busy","") then
-                inst.sg:GoToState("")
-                SkillCool(inst,1,40)
+            if not inst.sg:HasAnyStateTag("busy","stalker_atrium_snare") then
+                inst.sg:GoToState("stalker_atrium_snare")
+                SkillCool(inst,1,10)
             end
         end,
 
         skill2 = function (inst)
-            if not inst.sg:HasAnyStateTag("busy","") then
-                inst.sg:GoToState("")
-                SkillCool(inst,2,45)
+            if not inst.sg:HasAnyStateTag("busy","stalker_atrium_summon_minions_pre","stalker_atrium_summon_minions_loop","stalker_atrium_summon_minions_pst") then
+                inst.sg:GoToState("stalker_atrium_summon_minions_pre")
+                SkillCool(inst,2,30)
+            end
+        end,
+
+        skill3 = function (inst)
+            if not inst.sg:HasAnyStateTag("busy","stalker_atrium_mindcontrol_pre","stalker_atrium_mindcontrol_loop","stalker_atrium_mindcontrol_pst") then
+                inst.sg:GoToState("stalker_atrium_mindcontrol_pre")
+                SkillCool(inst,3,15)
             end
         end,
 
         stategraphs = {
-            skill0 = function (inst)
-                
+            skill0 = "stalker_atrium_spikes",
+        },
+    },
+
+    mutatedwarg = {
+        skill = function (act)
+            return true
+        end,
+
+        sounds = {
+            idle = "rifts3/mutated_varg/idle",
+            howl = "rifts3/mutated_varg/howl",
+            hit = "rifts3/mutated_varg/hit",
+            attack = "rifts3/mutated_varg/attack",
+            death = "rifts3/mutated_varg/death",
+            sleep = "rifts3/mutated_varg/sleep",
+        },
+
+        skill1 = function (inst)
+            if not inst:HasTag("mutatedwarg_flamethrower") then
+                inst:AddTag("mutatedwarg_flamethrower")
             end
+            SkillCool(inst,1,8)
+        end,
+
+        stategraphs = {
+            skill0 = function(inst)
+                if inst:HasTag("mutatedwarg_flamethrower") then
+                    return "mutatedwarg_flamethrower_pre"
+                else
+                    return "mutatedwarg_howl"
+                end
+            end,
+        },
+    },
+
+    mutatedbearger = {
+        skill = function (act)
+            return true
+        end,
+
+        sounds = {
+            attack = "dontstarve_DLC001/creatures/bearger/attack",
+            death = "dontstarve_DLC001/creatures/bearger/death",
+            idle = "dontstarve_DLC001/creatures/bearger/idle",
+            sleep = "dontstarve_DLC001/creatures/bearger/sleep",
+            taunt = "dontstarve_DLC001/creatures/bearger/taunt",
+            taunt_short = "dontstarve_DLC001/creatures/bearger/taunt_short",
+            growl = "dontstarve_DLC001/creatures/bearger/grrrr",
+            yawn = "dontstarve_DLC001/creatures/bearger/yawn",
+        },
+
+        transform = function (inst)
+            if inst:HasTag("bearger_run") then
+                inst:RemoveTag("bearger_run")
+                if inst.components.locomotor then
+                    inst.components.locomotor:RemoveExternalSpeedMultiplier(inst,"bearger_run_speed")
+                end
+            else
+                inst:AddTag("bearger_run")
+                if inst.components.locomotor then
+                    inst.components.locomotor:SetExternalSpeedMultiplier(inst,"bearger_run_speed",5/3)
+                end
+            end
+            TransformCool(inst)
+        end,
+
+        skill1 = function (inst)
+
+        end,
+
+        stategraphs = {
+            skill0 = "bearger_pound"
         },
     },
 }

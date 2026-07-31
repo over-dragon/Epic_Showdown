@@ -1,9 +1,7 @@
 local Widget = require "widgets/widget"
 local UIAnim = require "widgets/uianim"
-local PlayerBadge = require "widgets/playerbadge"
 local easing = require "easing"
 local EPIC = require("wereepic_skill")
-
 
 local CastSelect = {
     taunt = {
@@ -17,12 +15,15 @@ local CastSelect = {
         pos = { 1100, 150 },
         animbank = "epic_castselect_icons",
         animbuild = "epic_castselect_icons",
-        animdis = "transform_run",
-        animfoc = "transform_run_focus"
+        animdis = "transform",
+        animfoc = "transform_focus"
     },
     onbecamehuman = {
         pos = { 1300, 150 },
-        is_player_badge = true,
+        animbank = "epic_castselect_icons",
+        animbuild = "epic_castselect_icons",
+        animdis = "onbecamehuman",
+        animfoc = "onbecamehuman_focus",
     },
     skill1 = {
         pos = { 1500, 150 },
@@ -47,24 +48,24 @@ local CastSelect = {
     },
 }
 
-local function OnSelect(anim)
+local function OnSelect(mode,anim)
     if anim.currentAnim == anim.animfoc then return end
-    if anim.GetAnimState then
-        anim:GetAnimState():PlayAnimation(anim.animfoc, true)
+    if EPIC[mode] then
+        anim:GetAnimState():PlayAnimation(mode.."_"..anim.animfoc, true)
+        anim.currentAnim = anim.animfoc
     else
-        anim:SetScale(1.4, 1.4)
+        anim:GetAnimState():PlayAnimation("cooldown", true)
     end
-    anim.currentAnim = anim.animfoc
 end
 
-local function OnUnSelect(anim)
+local function OnUnSelect(mode,anim)
     if anim.currentAnim == anim.animdis then return end
-    if anim.GetAnimState then
-        anim:GetAnimState():PlayAnimation(anim.animdis, true)
+    if EPIC[mode] then
+        anim:GetAnimState():PlayAnimation(mode.."_"..anim.animdis,true)
+        anim.currentAnim = anim.animdis
     else
-        anim:SetScale(1.3, 1.3)
+        anim:GetAnimState():PlayAnimation("cooldown", true)
     end
-    anim.currentAnim = anim.animdis
 end
 
 local Hide_Skill = {
@@ -82,78 +83,38 @@ local EpicCastSelect = Class(Widget, function(self, owner)
     self.casts = {}
 
     for name, data in pairs(CastSelect) do
-        if data.is_player_badge then
-            local playerbadge = self:AddChild(PlayerBadge("", {1,1,1,1}, false, 0))
-            local function ChangeSkin()
-                owner:DoTaskInTime(0.3,function()
-                    local prefab = owner.prefab or "wilson"
-                    local base_skin = nil
-                    pcall(function()
-                        local clients = TheNet:GetClientTable()
-                        if clients then
-                            for _, c in ipairs(clients) do
-                                if c.userid == owner.userid then
-                                    base_skin = c.base_skin
-                                    break
-                                end
-                            end
-                        end
-                    end)
-                    playerbadge:Set(prefab, {1,1,1,1}, false, 0, base_skin)
-                end)
-            end
-            ChangeSkin()
-            playerbadge.animdis = "normal"
-            playerbadge.animfoc = "focus"
-            playerbadge._ChangeSkin = ChangeSkin
+        local anim = self:AddChild(UIAnim())
+        anim:GetAnimState():SetBank(data.animbank)
+        anim:GetAnimState():SetBuild(data.animbuild)
+        anim.animdis = data.animdis
+        anim.animfoc = data.animfoc
 
-            playerbadge.headframe:SetTexture("images/headframe.xml", "headframe.tex")
-            playerbadge.headbg:SetTint(1, 0.5, 0.5, 1)
+        anim.cooldown_anim = anim:AddChild(UIAnim())
+        anim.cooldown_anim:GetAnimState():SetBank(data.animbank)
+        anim.cooldown_anim:GetAnimState():SetBuild(data.animbuild)
+        anim.cooldown_anim:GetAnimState():SetMultColour(1, 1, 1, 0.5)
+        -- anim.cooldown_anim:SetScale(1.5,1.5)
+        anim.cooldown_anim:SetClickable(false)
+        anim.cooldown_anim:Hide()
 
-            playerbadge:SetClickable(true)
-
-            playerbadge.cooldown_anim = playerbadge:AddChild(UIAnim())
-            playerbadge.cooldown_anim:GetAnimState():SetBank("epic_castselect_icons")
-            playerbadge.cooldown_anim:GetAnimState():SetBuild("epic_castselect_icons")
-            playerbadge.cooldown_anim:GetAnimState():SetMultColour(1, 1, 1, 0.5)
-            playerbadge.cooldown_anim:SetScale(1.5,1.5)
-            playerbadge.cooldown_anim:SetClickable(false)
-            playerbadge.cooldown_anim:Hide()
-
-            OnUnSelect(playerbadge)
-
-            self.casts[name] = playerbadge
-        else
-            local anim = self:AddChild(UIAnim())
-            anim:GetAnimState():SetBank(data.animbank)
-            anim:GetAnimState():SetBuild(data.animbuild)
-            anim.animdis = data.animdis
-            anim.animfoc = data.animfoc
-
-            anim.cooldown_anim = anim:AddChild(UIAnim())
-            anim.cooldown_anim:GetAnimState():SetBank(data.animbank)
-            anim.cooldown_anim:GetAnimState():SetBuild(data.animbuild)
-            anim.cooldown_anim:GetAnimState():SetMultColour(1, 1, 1, 0.5)
-            anim.cooldown_anim:SetScale(1.5,1.5)
-            anim.cooldown_anim:SetClickable(false)
-            anim.cooldown_anim:Hide()
-
-            OnUnSelect(anim)
-            self.casts[name] = anim
-        end
+        OnUnSelect("none",anim)
+        self.casts[name] = anim
     end
 
     self.updating = false
     self.current_select = nil
     self.start_time = nil
+    self.mode = "none"
 end)
 
-function EpicCastSelect:HideSkill()
+function EpicCastSelect:ShowSkill()
     local mode = self.owner.replica.wereepic:GetEpicMode()
+    self.mode = mode
     if EPIC[mode] then
         for k, v in pairs(Hide_Skill) do
             if EPIC[mode][k] then
                 self.casts[k]:Show()
+                self.casts[k]:GetAnimState():PlayAnimation(mode.."_"..k,true)
             else
                 self.casts[k]:Hide()
             end
@@ -162,7 +123,9 @@ function EpicCastSelect:HideSkill()
             self.casts["taunt"]:Hide()
         else
             self.casts["taunt"]:Show()
+            self.casts["taunt"]:GetAnimState():PlayAnimation(mode.."_taunt",true)
         end
+        self.casts["onbecamehuman"]:GetAnimState():PlayAnimation(mode.."_onbecamehuman",true)
     end
 end
 
@@ -208,22 +171,21 @@ end
 
 function EpicCastSelect:Select(name)
     if self.current_select then
-        OnUnSelect(self.casts[self.current_select])
+        OnUnSelect(self.mode,self.casts[self.current_select])
         self.current_select = nil
     end
 
     if name then
         self.current_select = name
-        OnSelect(self.casts[name])
+        OnSelect(self.mode,self.casts[name])
     end
 end
 
 function EpicCastSelect:OnShow()
+    self:ShowSkill()
     self.start_time = GetTime()
     self.updating = true
-    self.casts["onbecamehuman"]:_ChangeSkin()
     self:StartUpdating()
-    self:HideSkill()
 end
 
 function EpicCastSelect:OnHide()
@@ -231,7 +193,7 @@ function EpicCastSelect:OnHide()
     self.updating = false
     for _, anim in pairs(self.casts) do
         anim:SetPosition(1300, 150)
-        OnUnSelect(anim)
+        OnUnSelect("none",anim)
     end
     self.hovered_spell = nil
 end
@@ -244,9 +206,7 @@ function EpicCastSelect:OnUpdate(dt)
             local target_pos = CastSelect[name].pos
             local x = easing.outQuad(elapsedTime, 1300, target_pos[1]-1300, duration)
             local y = easing.outQuad(elapsedTime, 150, target_pos[2]-150, duration)
-            if anim.GetAnimState then
-                anim:GetAnimState():SetMultColour(1, 1, 1, elapsedTime / duration)
-            end
+            anim:GetAnimState():SetMultColour(1, 1, 1, elapsedTime / duration)
             anim:SetPosition(x, y)
         end
     else
@@ -261,10 +221,6 @@ function EpicCastSelect:OnUpdate(dt)
     local mouse = TheInput:GetScreenPosition()
     local hovered = nil
 
-    if hovered and self:IsCoolingDown(hovered) then
-        hovered = nil
-    end
-
     for name, anim in pairs(self.casts) do
         local animPos = anim:GetWorldPosition()
         local halfSize = 51
@@ -275,12 +231,20 @@ function EpicCastSelect:OnUpdate(dt)
         end
     end
 
+    if hovered and self:IsCoolingDown(hovered) then
+        hovered = nil
+    end
+
     for name, anim in pairs(self.casts) do
         if name == hovered then
-            OnSelect(anim)
+            OnSelect(self.mode,anim)
         else
-            OnUnSelect(anim)
+            OnUnSelect(self.mode,anim)
         end
+    end
+
+    if hovered ~= nil and hovered ~= self.hovered_spell then
+        TheFrontEnd:GetSound():PlaySound("dontstarve/HUD/click_move")
     end
 
     self.hovered_spell = hovered
@@ -288,6 +252,7 @@ end
 function EpicCastSelect:OnMouseButton(button, down, x, y)
     if button == MOUSEBUTTON_LEFT and not down then
         if self.casts[self.hovered_spell] and not self:IsCoolingDown(self.hovered_spell) then
+            TheFrontEnd:GetSound():PlaySound("dontstarve/HUD/click_move")
             SendModRPCToServer(MOD_RPC["WEREEPIC"][self.hovered_spell])
         end
         return true

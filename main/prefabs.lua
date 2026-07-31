@@ -172,6 +172,28 @@ AddPrefabPostInit("gestalt", function(inst)
     end
 end)
 
+-- local hound = { "hound","firehound","icehound" }
+-- for i, v in ipairs(hound) do
+--     AddPrefabPostInit(v, function(inst)
+--         if not TheWorld.ismastersim then
+--             return inst
+--         end
+--         local follower = inst.components.follower or nil
+--         if follower then
+--             local old_OnChangedLeader = follower.OnChangedLeader
+--             follower.OnChangedLeader = function (inst, new, old)
+--                 if new and new:HasTag("epic") and new:HasTag("player") then
+--                     inst.forcemutate = true
+--                     inst.wargleader = new
+--                     follower:KeepLeaderOnAttacked()
+--                 else
+--                     return old_OnChangedLeader(inst, new, old)
+--                 end
+--             end
+--         end
+--     end)
+-- end
+
 -- AddPrefabPostInit("wanda", function(inst)
 --     if not TheWorld.ismastersim then
 -- 		return inst
