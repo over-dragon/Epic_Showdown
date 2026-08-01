@@ -172,6 +172,16 @@ AddPrefabPostInit("gestalt", function(inst)
     end
 end)
 
+local CHARGE_ITEMS = {"purebrilliance", "horrorfuel"}
+for i, v in ipairs(CHARGE_ITEMS) do
+    AddPrefabPostInit(v, function(inst)
+        if not TheWorld.ismastersim then
+            return inst
+        end
+        inst:AddComponent("wereepic_chargeitem")
+    end)
+end
+
 -- local hound = { "hound","firehound","icehound" }
 -- for i, v in ipairs(hound) do
 --     AddPrefabPostInit(v, function(inst)

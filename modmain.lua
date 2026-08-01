@@ -2,9 +2,9 @@ modimport("main/init")
 
 modimport("main/tuning")
 
-modimport("main/patches")
-
 modimport("main/string_zh")
+
+modimport("main/patches")
 
 modimport("main/widgets")
 

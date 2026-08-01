@@ -1211,6 +1211,10 @@ local WEREEPIC_BOSS = {
                 inst.components.planardamage:SetBaseDamage(TUNING.MUTATED_WARG_PLANAR_DAMAGE)
             end
 
+            if inst.components.sanity then
+                inst.components.sanity:EnableLunacy(true, "epic_enablelunacy")
+            end
+
             inst.mutatedwarg_gestalt = SpawnPrefab("epic_mutatedwarg_gestaltflame_fx")
 			inst.mutatedwarg_gestalt.entity:SetParent(inst.entity)
 			inst.mutatedwarg_gestalt.Follower:FollowSymbol(inst.GUID, "swap_gestalt_flame", 0, 0, 0, true)
@@ -1259,6 +1263,10 @@ local WEREEPIC_BOSS = {
 
             if inst.components.planardamage then
                 inst.components.planardamage:SetBaseDamage(0)
+            end
+
+            if inst.components.sanity then
+                inst.components.sanity:EnableLunacy(false, "epic_enablelunacy")
             end
 
             if inst.mutatedwarg_gestalt then
@@ -1313,7 +1321,11 @@ local WEREEPIC_BOSS = {
             end
 
             if inst.components.planardamage then
-                inst.components.planardamage:SetBaseDamage()
+                inst.components.planardamage:SetBaseDamage(TUNING.MUTATED_BEARGER_PLANAR_DAMAGE)
+            end
+
+            if inst.components.sanity then
+                inst.components.sanity:EnableLunacy(true, "epic_enablelunacy")
             end
 
             inst:AddComponent("groundpounder")
@@ -1333,6 +1345,26 @@ local WEREEPIC_BOSS = {
             inst.bearger_recentlycharged = {}
 
             inst:ListenForEvent("onhitother", bearger_OnHitOther)
+
+            inst.mutatedbearger_gestalt = SpawnPrefab("epic_mutatedbearger_gestaltflame_fx")
+            inst.mutatedbearger_gestalt.entity:SetParent(inst.entity)
+            inst.mutatedbearger_gestalt.Follower:FollowSymbol(inst.GUID, "swap_gestalt_flame", 0, 0, 0, true)
+            local frames = inst.mutatedbearger_gestalt.AnimState:GetCurrentAnimationNumFrames()
+            local rnd = math.random(frames) - 1
+            inst.mutatedbearger_gestalt.AnimState:SetFrame(rnd)
+
+            inst.mutatedbearger_eyeL = SpawnPrefab("epic_mutatedbearger_eyeflame_fx")
+            inst.mutatedbearger_eyeL.entity:SetParent(inst.entity)
+            inst.mutatedbearger_eyeL.Follower:FollowSymbol(inst.GUID, "flameL", 0, 0, 0, true)
+            frames = inst.mutatedbearger_eyeL.AnimState:GetCurrentAnimationNumFrames()
+            rnd = math.random(frames) - 1
+            inst.mutatedbearger_eyeL.AnimState:SetFrame(rnd)
+
+            inst.mutatedbearger_eyeR = SpawnPrefab("epic_mutatedbearger_eyeflame_fx")
+            inst.mutatedbearger_eyeR.entity:SetParent(inst.entity)
+            inst.mutatedbearger_eyeR.Follower:FollowSymbol(inst.GUID, "flameR", 0, 0, 0, true)
+            rnd = (rnd + math.floor((0.35 + math.random() * 0.35) * frames)) % frames
+            inst.mutatedbearger_eyeR.AnimState:SetFrame(rnd)
         end,
 
         master_human = function (inst)
@@ -1349,6 +1381,10 @@ local WEREEPIC_BOSS = {
                 inst.components.planardamage:SetBaseDamage(0)
             end
 
+            if inst.components.sanity then
+                inst.components.sanity:EnableLunacy(false, "epic_enablelunacy")
+            end
+
             inst:RemoveComponent("groundpounder")
 
             if inst.components.locomotor then
@@ -1356,7 +1392,117 @@ local WEREEPIC_BOSS = {
             end
 
             inst:RemoveEventCallback("onhitother", bearger_OnHitOther)
+
+            if inst.mutatedbearger_gestalt then
+                inst.mutatedbearger_gestalt:Remove()
+                inst.mutatedbearger_gestalt = nil
+            end
+            if inst.mutatedbearger_eyeL then
+                inst.mutatedbearger_eyeL:Remove()
+                inst.mutatedbearger_eyeL = nil
+            end
+            if inst.mutatedbearger_eyeR then
+                inst.mutatedbearger_eyeR:Remove()
+                inst.mutatedbearger_eyeR = nil
+            end
         end
+    },
+
+    mutateddeerclops = {
+        build = "deerclops_mutated",
+        bank = "deerclops",
+        scale = 1.65,
+        phyrad = 0.5,
+        dyshadow = {6,3.5},
+        freezable = "deerclops_body",
+        burnable_damage = 0,
+        hurtsoundoverride = "dontstarve/creatures/deerclops/hurt",
+        deathsoundoverride = "dontstarve/creatures/deerclops/death",
+        music = "dontstarve/music/music_epicfight_gestalt_mutants",
+
+        oncollide = deerclops_oncollide,
+        enablelunacy = true,
+
+        gogglevision = true,
+        health = TUNING.MUTATED_DEERCLOPS_HEALTH*TUNING.EPIC_WORLD.HEALTH,
+        damage = TUNING.MUTATED_DEERCLOPS_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
+        range = TUNING.MUTATED_DEERCLOPS_ATTACK_RANGE/2,
+
+        master_postinit = function (inst)
+            inst:AddTag("epic_immune_sleep")
+            inst:AddTag("epic_lunar")
+            inst:AddTag("epic_immune_freeze")
+            inst:AddTag("fireimmune")
+            if inst.components.freezable then
+                local old_redirectfn = inst.components.freezable.redirectfn
+                inst.components.freezable:SetRedirectFn(function (inst, coldness, freezetime, nofreeze)
+                    if inst:HasTag("epic_immune_freeze") then
+                        return true
+                    else
+                        if old_redirectfn then
+                            return old_redirectfn(inst, coldness, freezetime, nofreeze)
+                        end
+                    end
+                end)
+            end
+
+            inst:AddComponent("planarentity")
+            if inst.components.grogginess then
+                inst.components.grogginess:AddImmunitySource(inst)
+            end
+
+            if inst.components.planardamage then
+                inst.components.planardamage:SetBaseDamage(TUNING.MUTATED_DEERCLOPS_PLANAR_DAMAGE)
+            end
+
+            if inst.components.sanity then
+                inst.components.sanity:EnableLunacy(true, "epic_enablelunacy")
+            end
+
+            inst.AnimState:Hide("head_neutral")
+
+            inst:ListenForEvent("onhitother", Deerclops_OnHitOther)
+
+            inst.AnimState:Hide("gestalt_eye")
+            inst.mutateddeerclops_gestalt = SpawnPrefab("epic_mutateddeerclops_gestaltflame_fx")
+            inst.mutateddeerclops_gestalt.entity:SetParent(inst.entity)
+            inst.mutateddeerclops_gestalt.Follower:FollowSymbol(inst.GUID, "swap_gestalt_flame", 0, 0, 0, true)
+            local frames = inst.mutateddeerclops_gestalt.AnimState:GetCurrentAnimationNumFrames()
+            local rnd = math.random(frames) - 1
+            inst.mutateddeerclops_gestalt.AnimState:SetFrame(rnd)
+        end,
+
+        master_human = function (inst)
+            inst:RemoveTag("epic_immune_sleep")
+            inst:RemoveTag("epic_lunar")
+            inst:RemoveTag("epic_immune_freeze")
+            inst:RemoveTag("fireimmune")
+
+            inst:RemoveComponent("planarentity")
+            if inst.components.grogginess then
+                inst.components.grogginess:RemoveImmunitySource(inst)
+            end
+
+            if inst.components.planardamage then
+                inst.components.planardamage:SetBaseDamage(0)
+            end
+
+            if inst.components.sanity then
+                inst.components.sanity:EnableLunacy(false, "epic_enablelunacy")
+            end
+
+            inst:RemoveEventCallback("onhitother", Deerclops_OnHitOther)
+
+            inst.AnimState:Show("gestalt_eye")
+            if inst.mutateddeerclops_gestalt then
+                inst.mutateddeerclops_gestalt:Remove()
+                inst.mutateddeerclops_gestalt = nil
+            end
+            if inst.sg.mem.mutateddeerclops_circle then
+				inst.sg.mem.mutateddeerclops_circle:Remove()
+				inst.sg.mem.mutateddeerclops_circle = nil
+			end
+        end,
     },
 }
 

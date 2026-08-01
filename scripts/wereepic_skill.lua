@@ -609,11 +609,53 @@ local WEREEPIC_SKILL = {
         end,
 
         skill1 = function (inst)
-
+            if not inst:HasTag("mutatedbearger_butt_skill") then
+                inst:AddTag("mutatedbearger_butt_skill")
+            end
+            SkillCool(inst,1,5)
         end,
 
         stategraphs = {
-            skill0 = "bearger_pound"
+            skill0 = function(inst)
+                if inst:HasTag("mutatedbearger_butt_skill") then
+                    return "mutatedbearger_butt_pre"
+                else
+                    return "bearger_pound"
+                end
+            end,
+        },
+    },
+
+    mutateddeerclops = {
+        skill = function (act)
+            return true
+        end,
+
+        sounds = {
+            step = "dontstarve/creatures/deerclops/step",
+            taunt_grrr = "dontstarve/creatures/deerclops/taunt_grrr",
+            taunt_howl = "dontstarve/creatures/deerclops/taunt_howl",
+            hurt = "dontstarve/creatures/deerclops/hurt",
+            death = "dontstarve/creatures/deerclops/death",
+            attack = "dontstarve/creatures/deerclops/attack",
+            swipe = "dontstarve/creatures/deerclops/swipe",
+            charge = "dontstarve/creatures/deerclops/charge",
+            walk = nil,
+        },
+
+        transform = function (inst)
+            if inst._deerclops_hide then
+                inst._deerclops_hide = false
+                inst.AnimState:Hide("head_neutral")
+            else
+                inst._deerclops_hide = true
+                inst.AnimState:Show("head_neutral")
+            end
+            TransformCool(inst)
+        end,
+
+        stategraphs = {
+            skill0 = "mutateddeerclops_icelance"
         },
     },
 }

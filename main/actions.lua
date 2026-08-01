@@ -326,8 +326,33 @@ AddStategraphActionHandler("wilson_client", ActionHandler(ACTIONS.EPIC_USEITEM, 
 
 local MONKEY_CURSE = {"wonkey","MONKEY_CURSE_1","MONKEY_CURSE_2","MONKEY_CURSE_3"}
 AddComponentAction("INVENTORY", "wereepic_useableitem", function(inst, doer, actions, right)
-    if inst and doer and not doer.replica.wereepic:IsEpic() and not doer:HasAnyTag(MONKEY_CURSE) then
+    if inst and doer and not doer.replica.wereepic:IsEpic() and not doer:HasAnyTag(MONKEY_CURSE) and not inst:HasTag("epicorigin_discharged") then
         table.insert(actions, ACTIONS.EPIC_USEITEM)
+    end
+end)
+
+local EPIC_CHARGE = Action()
+EPIC_CHARGE.id = "EPIC_CHARGE"
+EPIC_CHARGE.priority = 5
+EPIC_CHARGE.strfn = function (act)
+    return "EPIC_CHARGE"
+end
+EPIC_CHARGE.fn = function (act)
+    local target = act.target
+    local invobject = act.invobject
+    return invobject.components.wereepic_chargeitem and invobject.components.wereepic_chargeitem:Charge(invobject, target)
+end
+AddAction(EPIC_CHARGE)
+STRINGS.ACTIONS.EPIC_CHARGE = {
+    EPIC_CHARGE = STRINGS.EPIC_ACTIONS_NAMED.CHARGE
+}
+
+AddStategraphActionHandler("wilson", ActionHandler(ACTIONS.EPIC_CHARGE, "doshortaction"))
+AddStategraphActionHandler("wilson_client", ActionHandler(ACTIONS.EPIC_CHARGE, "doshortaction"))
+
+AddComponentAction("USEITEM", "wereepic_chargeitem", function(inst, doer, target, actions, right)
+    if right and target:HasTag("epicorigin_discharged") then
+        table.insert(actions, ACTIONS.EPIC_CHARGE)
     end
 end)
 

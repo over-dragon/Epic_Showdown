@@ -97,11 +97,27 @@ AddStategraphState("wilson_client",State{
             elseif mode=="stalker_atrium" then
                 inst.AnimState:PlayAnimation("attack")
                 inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/out")
+            elseif mode=="mutatedbearger" then
+                if inst.AnimState:IsCurrentAnimation("atk1") or inst.AnimState:IsCurrentAnimation("atk1_pst") or inst.AnimState:IsCurrentAnimation("atk1a") then
+                    inst.AnimState:PlayAnimation("atk2")
+                    inst.AnimState:PushAnimation("atk2_pst", false)
+                    inst.sg.statemem.mutatedbearger_combo = true
+                    inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/bearger/attack")
+                elseif inst.AnimState:IsCurrentAnimation("atk2") or inst.AnimState:IsCurrentAnimation("atk2_pst") then
+                    inst.AnimState:PlayAnimation("atk1a")
+                    inst.AnimState:PushAnimation("atk1_pst", false)
+                    inst.sg.statemem.mutatedbearger_combo = true
+                    inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/bearger/attack")
+                else
+                    inst.AnimState:PlayAnimation("atk1")
+				    inst.AnimState:PushAnimation("atk1_pst", false)
+                    inst.sg.statemem.mutatedbearger_combo = false
+                end
             else
 			    inst.AnimState:PlayAnimation("atk")
             end
-            if mode=="bearger" or mode=="daywalker" then
-                if mode=="bearger" then
+            if mode=="bearger" or mode=="daywalker" or mode=="mutatedbearger" then
+                if mode=="bearger" or mode=="mutatedbearger" then
                     inst.Transform:SetEightFaced()
                 end
                 if target ~= nil and target:IsValid() then
@@ -121,12 +137,12 @@ AddStategraphState("wilson_client",State{
                         inst.Physics:SetMotorVelOverride(2, 0, 0)
                     end
                 end
-            elseif mode=="deerclops" or mode=="daywalker2" or mode=="alterguardian_phase2" or mode=="mutatedwarg" then
+            elseif mode=="deerclops" or mode=="daywalker2" or mode=="alterguardian_phase2" or mode=="mutatedwarg" or mode=="mutateddeerclops" then
                 if target ~= nil and target:IsValid() then
                     inst:ForceFacePoint(target.Transform:GetWorldPosition())
                     inst.sg.statemem.target = target
                 end
-                if mode=="deerclops" or mode=="mutatedwarg" then
+                if mode=="deerclops" or mode=="mutatedwarg" or mode=="mutateddeerclops" then
                     inst.SoundEmitter:PlaySound(EPIC[mode].sounds.attack)
                 end
             else
@@ -155,14 +171,14 @@ AddStategraphState("wilson_client",State{
 			if inst.sg.statemem.target ~= nil then
 				if inst.sg.statemem.target:IsValid() then
                     if inst.sg.statemem.epicmode=="deerclops" or inst.sg.statemem.epicmode=="daywalker2" or
-                    inst.sg.statemem.epicmode=="alterguardian_phase2" then
+                    inst.sg.statemem.epicmode=="alterguardian_phase2" or inst.sg.statemem.epicmode=="mutateddeerclops" then
                         local rot = inst.Transform:GetRotation()
                         local rot1 = inst:GetAngleToPoint(inst.sg.statemem.target.Transform:GetWorldPosition())
                         if DiffAngle(rot, rot1) < 45 then
                             inst.Transform:SetRotation(rot1)
                             return
                         end
-                    elseif inst.sg.statemem.epicmode=="bearger" or inst.sg.statemem.epicmode=="daywalker" then
+                    elseif inst.sg.statemem.epicmode=="bearger" or inst.sg.statemem.epicmode=="daywalker" or inst.sg.statemem.epicmode=="mutatedbearger" then
                         local p = inst.sg.statemem.targetpos
                         p.x, p.y, p.z = inst.sg.statemem.target.Transform:GetWorldPosition()
                         if inst.sg.statemem.targetpos ~= nil then
@@ -214,7 +230,7 @@ AddStategraphState("wilson_client",State{
                 end
             end),
 			FrameEvent(4, function(inst)
-                if inst.sg.statemem.epicmode=="bearger" then
+                if inst.sg.statemem.epicmode=="bearger" or (inst.sg.statemem.epicmode=="mutatedbearger" and not inst.sg.statemem.mutatedbearger_combo) then
                     inst.SoundEmitter:PlaySound(EPIC[inst.sg.statemem.epicmode].sounds.attack)
                 end
             end),
@@ -324,6 +340,14 @@ AddStategraphState("wilson_client",State{
                         inst:ClearBufferedAction()
                     end
                     inst.sg:RemoveStateTag("abouttoattack")
+                elseif inst.sg.statemem.mutatedbearger_combo then
+                    inst.Physics:SetMotorVelOverride(6, 0, 0)
+                end
+            end),
+            FrameEvent(24, function(inst)
+                if inst.sg.statemem.mutatedbearger_combo then
+                    inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/bearger/swhoosh")
+                    inst.Physics:SetMotorVelOverride(12, 0, 0)
                 end
             end),
             FrameEvent(25, function(inst)
@@ -344,11 +368,24 @@ AddStategraphState("wilson_client",State{
                     end
                 end
             end),
+            FrameEvent(27, function(inst)
+                if inst.sg.statemem.epicmode=="mutatedbearger" and not inst.sg.statemem.mutatedbearger_combo then
+                    inst.Physics:SetMotorVelOverride(6, 0, 0)
+                end
+            end),
             FrameEvent(28, function(inst)
                 if inst.sg.statemem.epicmode=="bearger" then
                     inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/bearger/swhoosh")
                 elseif inst.sg.statemem.epicmode=="daywalker" then
                     inst.Physics:SetMotorVelOverride(1.5, 0, 0)
+                elseif inst.sg.statemem.epicmode=="mutatedbearger" and not inst.sg.statemem.mutatedbearger_combo then
+                    inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/bearger/swhoosh")
+                    inst.Physics:SetMotorVelOverride(6, 0, 0)
+                elseif inst.sg.statemem.mutatedbearger_combo then
+                    if inst.sg.statemem.isattack then
+                        inst:ClearBufferedAction()
+                    end
+                    inst.sg:RemoveStateTag("abouttoattack")
                 end
             end),
             FrameEvent(29, function(inst)
@@ -365,8 +402,18 @@ AddStategraphState("wilson_client",State{
                     end
                 end
 			end),
+            FrameEvent(30, function(inst)
+                if inst.sg.statemem.mutatedbearger_combo then
+                    inst.Physics:SetMotorVelOverride(6, 0, 0)
+                end
+            end),
+            FrameEvent(31, function(inst)
+                if inst.sg.statemem.mutatedbearger_combo then
+                    inst.Physics:SetMotorVelOverride(3, 0, 0)
+                end
+            end),
             FrameEvent(32, function(inst)
-                if inst.sg.statemem.epicmode=="bearger" or inst.sg.statemem.epicmode=="deerclops" then
+                if inst.sg.statemem.epicmode=="bearger" or inst.sg.statemem.epicmode=="deerclops" or inst.sg.statemem.epicmode=="mutateddeerclops" then
                     if inst.sg.statemem.isattack then
                         inst:ClearBufferedAction()
                     end
@@ -379,16 +426,58 @@ AddStategraphState("wilson_client",State{
                         inst:ClearBufferedAction()
                     end
                     inst.sg:RemoveStateTag("abouttoattack")
+                elseif inst.sg.statemem.epicmode=="mutatedbearger" and not inst.sg.statemem.mutatedbearger_combo then
+                    if inst.sg.statemem.isattack then
+                        inst:ClearBufferedAction()
+                    end
+                    inst.sg:RemoveStateTag("abouttoattack")
+                elseif inst.sg.statemem.mutatedbearger_combo then
+                    inst.Physics:SetMotorVelOverride(1.5, 0, 0)
+                end
+			end),
+            FrameEvent(33, function(inst)
+				if inst.sg.statemem.mutatedbearger_combo then
+                    inst.Physics:SetMotorVelOverride(0.75, 0, 0)
                 end
 			end),
 			FrameEvent(34, function(inst)
-                if inst.sg.statemem.epicmode=="deerclops" then
+                if inst.sg.statemem.epicmode=="deerclops" or inst.sg.statemem.epicmode=="mutateddeerclops" then
                     inst.SoundEmitter:PlaySound(EPIC[inst.sg.statemem.epicmode].sounds.swipe)
+                elseif inst.sg.statemem.epicmode=="mutatedbearger" and not inst.sg.statemem.mutatedbearger_combo then
+                    inst.Physics:SetMotorVelOverride(6, 0, 0)
+                elseif inst.sg.statemem.mutatedbearger_combo then
+                    inst.Physics:SetMotorVelOverride(0.375, 0, 0)
                 end
 			end),
+            FrameEvent(35, function(inst)
+                if inst.sg.statemem.epicmode=="mutatedbearger" and not inst.sg.statemem.mutatedbearger_combo then
+                    inst.Physics:SetMotorVelOverride(3, 0, 0)
+                end
+            end),
+            FrameEvent(36, function(inst)
+                if inst.sg.statemem.epicmode=="mutatedbearger" and not inst.sg.statemem.mutatedbearger_combo then
+                    inst.Physics:SetMotorVelOverride(1.5, 0, 0)
+                end
+            end),
+            FrameEvent(37, function(inst)
+                if inst.sg.statemem.epicmode=="mutatedbearger" and not inst.sg.statemem.mutatedbearger_combo then
+                    inst.Physics:SetMotorVelOverride(0.75, 0, 0)
+                elseif inst.sg.statemem.mutatedbearger_combo then
+                    inst.sg:RemoveStateTag("busy")
+                    inst.sg:RemoveStateTag("attack")
+                end
+            end),
+            FrameEvent(38, function(inst)
+                if inst.sg.statemem.epicmode=="mutatedbearger" and not inst.sg.statemem.mutatedbearger_combo then
+                    inst.Physics:SetMotorVelOverride(0.375, 0, 0)
+                end
+            end),
             FrameEvent(39, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase1" then
                     inst.SoundEmitter:PlaySound("moonstorm/creatures/boss/alterguardian1/tantrum")
+                elseif inst.sg.statemem.epicmode=="mutatedbearger" and not inst.sg.statemem.mutatedbearger_combo then
+                    inst.Physics:ClearMotorVelOverride()
+				    inst.Physics:Stop()
                 end
             end),
             FrameEvent(40, function(inst)
@@ -419,6 +508,9 @@ AddStategraphState("wilson_client",State{
                     inst.Physics:SetMotorVelOverride(12 * inst.sg.statemem.speedmult, 0, 0)
                 elseif inst.sg.statemem.epicmode=="alterguardian_phase1" then
                     inst.SoundEmitter:PlaySound("moonstorm/creatures/boss/alterguardian1/tantrum")
+                elseif inst.sg.statemem.epicmode=="mutatedbearger" and not inst.sg.statemem.mutatedbearger_combo then
+                    inst.sg:RemoveStateTag("busy")
+                    inst.sg:RemoveStateTag("attack")
                 end
             end),
             FrameEvent(42, function(inst)
@@ -523,8 +615,10 @@ AddStategraphState("wilson_client",State{
 		},
 
         onexit = function(inst)
-            if inst.sg.statemem.epicmode=="bearger" then
+            if inst.sg.statemem.epicmode=="bearger" or inst.sg.statemem.epicmode=="mutatedbearger" then
                 inst.Transform:SetFourFaced()
+                inst.Physics:ClearMotorVelOverride()
+                inst.Physics:Stop()
             elseif inst.sg.statemem.epicmode=="daywalker" then
                 inst.Physics:ClearMotorVelOverride()
                 inst.Physics:Stop()
@@ -599,7 +693,7 @@ AddStategraphState("wilson_client",State{
         onenter = function(inst)
 			local mode = inst.replica.wereepic:GetEpicMode()
             inst.components.locomotor:RunForward()
-            if mode=="bearger" then
+            if mode=="bearger" or mode=="mutatedbearger" then
                 if inst:HasTag("bearger_run") then
                     if not inst.SoundEmitter:PlayingSound("taunt") then
                         inst.SoundEmitter:PlaySound(EPIC[mode].sounds.taunt, "taunt")
@@ -652,7 +746,7 @@ AddStategraphState("wilson_client",State{
                 end
             end),
             TimeEvent(7 * FRAMES, function(inst)
-				if inst.sg.statemem.epicmode=="deerclops" then
+				if inst.sg.statemem.epicmode=="deerclops" or inst.sg.statemem.epicmode=="mutateddeerclops" then
 					DeerclopsFootstep(inst, true)
 				end
             end)
@@ -669,7 +763,7 @@ AddStategraphState("wilson_client",State{
         },
 
         onexit = function (inst)
-			if not inst.sg.statemem.walking and inst.sg.statemem.epicmode=="deerclops" then
+			if not inst.sg.statemem.walking and (inst.sg.statemem.epicmode=="deerclops" or inst.sg.statemem.epicmode=="mutateddeerclops") then
 				DeerclopsFootstep(inst, false)
 			end
         end
@@ -682,7 +776,7 @@ AddStategraphState("wilson_client",State{
         onenter = function(inst)
 			local mode = inst.replica.wereepic:GetEpicMode()
             inst.components.locomotor:RunForward()
-            if mode=="bearger" then
+            if mode=="bearger" or mode=="mutatedbearger" then
                 if inst:HasTag("bearger_run") then
                     if not inst.SoundEmitter:PlayingSound("taunt") then
                         inst.SoundEmitter:PlaySound(EPIC[mode].sounds.taunt, "taunt")
@@ -752,7 +846,7 @@ AddStategraphState("wilson_client",State{
                 end
 			end),
             FrameEvent(1, function(inst)
-				if inst.sg.statemem.epicmode=="bearger" and not inst:HasTag("bearger_run") then
+				if (inst.sg.statemem.epicmode=="bearger" or inst.sg.statemem.epicmode=="mutatedbearger" ) and not inst:HasTag("bearger_run") then
 					DoFootstep(inst)
                 elseif inst.sg.statemem.epicmode=="moose" then
                     PlayFootstep(inst)
@@ -810,7 +904,7 @@ AddStategraphState("wilson_client",State{
 				end
 			end),
 			FrameEvent(17, function(inst)
-				if inst.sg.statemem.epicmode=="bearger" and not inst:HasTag("bearger_run") then
+				if (inst.sg.statemem.epicmode=="bearger" or inst.sg.statemem.epicmode=="mutatedbearger" ) and not inst:HasTag("bearger_run") then
 					DoFootstep(inst)
 				end
 			end),
@@ -830,7 +924,7 @@ AddStategraphState("wilson_client",State{
 				end
 			end),
             FrameEvent(23, function(inst)
-				if inst.sg.statemem.epicmode=="deerclops" then
+				if inst.sg.statemem.epicmode=="deerclops" or inst.sg.statemem.epicmode=="mutateddeerclops" then
 					DeerclopsFootstep(inst, true)
 				end
             end),
@@ -868,7 +962,7 @@ AddStategraphState("wilson_client",State{
                 end
             end),
             FrameEvent(47, function(inst)
-				if inst.sg.statemem.epicmode=="deerclops" then
+				if inst.sg.statemem.epicmode=="deerclops" or inst.sg.statemem.epicmode=="mutateddeerclops" then
 					DeerclopsFootstep(inst, true)
 				end
             end),
@@ -886,7 +980,7 @@ AddStategraphState("wilson_client",State{
         },
 
         ontimeout = function(inst)
-            if inst.sg.statemem.epicmode=="bearger" and not inst:HasTag("bearger_run") then
+            if (inst.sg.statemem.epicmode=="bearger" or inst.sg.statemem.epicmode=="mutatedbearger" ) and not inst:HasTag("bearger_run") then
                 if inst.replica.combat:GetTarget() and math.random() < 0.5 then
                     inst.SoundEmitter:PlaySound(EPIC[inst.sg.statemem.epicmode].sounds.growl)
                 end
@@ -896,7 +990,7 @@ AddStategraphState("wilson_client",State{
         end,
 
         onexit = function (inst)
-			if not inst.sg.statemem.walking and inst.sg.statemem.epicmode=="deerclops" then
+			if not inst.sg.statemem.walking and (inst.sg.statemem.epicmode=="deerclops" or inst.sg.statemem.epicmode=="mutateddeerclops") then
 				DeerclopsFootstep(inst, false)
 			end
         end
@@ -909,7 +1003,7 @@ AddStategraphState("wilson_client",State{
         onenter = function(inst)
 			local mode = inst.replica.wereepic:GetEpicMode()
             inst.components.locomotor:Stop()
-            if mode=="bearger" then
+            if mode=="bearger" or mode=="mutatedbearger" then
                 inst.AnimState:PlayAnimation("charge_pst")
                 DoFootstep(inst)
             elseif mode=="antlion" then
@@ -1107,6 +1201,7 @@ AddStategraphState("wilson_client",State{
 		onenter = function(inst)
 			inst.components.locomotor:StopMoving()
 			inst.AnimState:PlayAnimation("ground_pound")
+            inst.AnimState:PushAnimation("to_bi",false)
             inst:PerformPreviewBufferedAction()
 		end,
 
@@ -1843,7 +1938,7 @@ AddStategraphState("wilson_client",State{
                     inst._facepoint_x, inst._facepoint_y, inst._facepoint_z = x, y, z
                     inst.sg.statemem.target = buffaction.target
                 end
-                inst.sg.statemem.targetpos = buffaction:GetActionPoint()
+                inst.sg.statemem.targetpos = Vector3(inst._facepoint_x, inst._facepoint_y, inst._facepoint_z)
 			end
             inst:PerformPreviewBufferedAction()
             inst.sg:SetTimeout(5)
@@ -1886,6 +1981,199 @@ AddStategraphState("wilson_client",State{
 		onexit = function(inst)
 			inst.Transform:SetSixFaced()
 			inst.SoundEmitter:KillSound("loop")
+		end,
+	})
+
+AddStategraphState("wilson_client",State{
+		name = "mutatedbearger_butt_pre",
+		tags = { "epic","epic_skill","busy" },
+        server_states = {"mutatedbearger_butt_pre","mutatedbearger_butt","mutatedbearger_butt_pst"},
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+            local target = nil
+            local buffaction = inst:GetBufferedAction()
+            if buffaction then
+				if buffaction.pos then
+					inst._facepoint_x,inst._facepoint_y,inst._facepoint_z = buffaction:GetActionPoint():Get()
+                elseif buffaction.target and buffaction.target:IsValid() then
+                    local x, y, z = buffaction.target.Transform:GetWorldPosition()
+                    inst._facepoint_x, inst._facepoint_y, inst._facepoint_z = x, y, z
+                    target = buffaction.target
+                    inst.sg.statemem.target = target
+                end
+                inst.sg.statemem.targetpos = Vector3(inst._facepoint_x, inst._facepoint_y, inst._facepoint_z)
+			end
+			local left
+            local x1, y1, z1 = inst._facepoint_x,inst._facepoint_y,inst._facepoint_z
+            if inst.sg.statemem.targetpos then
+                x1, y1, z1 = inst.sg.statemem.targetpos:Get()
+            else
+                inst.sg.statemem.targetpos = Vector3(inst._facepoint_x,inst._facepoint_y,inst._facepoint_z)
+            end
+
+            local rot = inst.Transform:GetRotation()
+            local facing_diff = ReduceAngle(inst:GetAngleToPoint(x1, y1, z1) - rot)
+            if math.abs(facing_diff) < 90 then
+                local px, py, pz = inst.Transform:GetWorldPosition()
+                x1 = 2 * px - x1
+                y1 = 2 * py - y1
+                z1 = 2 * pz - z1
+                inst._facepoint_x, inst._facepoint_y, inst._facepoint_z = x1, y1, z1
+                inst.sg.statemem.targetpos = Vector3(x1, y1, z1)
+            end
+
+			local rot = inst.Transform:GetRotation()
+			local rot1 = inst:GetAngleToPoint(x1, y1, z1) + 180
+			local drot = ReduceAngle(rot1 - rot)
+			if drot ~= 0 and math.abs(drot) < 90 then
+				left = drot > 0
+				inst.sg.statemem.left = left
+			end
+
+			if left == nil then
+				left = math.random() < 0.5
+			end
+			inst.AnimState:PlayAnimation(left and "butt_pre_L" or "butt_pre_R")
+            inst:PerformPreviewBufferedAction()
+            inst.sg:SetTimeout(5)
+		end,
+
+		timeline =
+		{
+			FrameEvent(0, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/bearger/attack") end),
+			FrameEvent(23, function(inst)
+				local p = inst.sg.statemem.targetpos
+				if p ~= nil then
+					local rot2
+					local target = inst.sg.statemem.target
+                    local x1, y1, z1 = inst.sg.statemem.targetpos:Get()
+					if target ~= nil and target:IsValid() then
+						x1, y1, z1 = target.Transform:GetWorldPosition()
+                    end
+						local rot = inst.Transform:GetRotation()
+						local rot1 = inst:GetAngleToPoint(x1, y1, z1) + 180
+						local drot = ReduceAngle(rot1 - rot)
+						local left = drot > 0
+						if drot ~= 0 and math.abs(drot) < (left == inst.sg.statemem.left and 90 or 30) then
+							rot2 = rot + drot / 2
+							p.x, p.y, p.z = x1, y1, z1
+						end
+					if rot2 == nil then
+						rot2 = inst:GetAngleToPoint(p) + 180
+					end
+					inst.Transform:SetRotation(rot2)
+				end
+			end),
+		},
+
+		ontimeout = function(inst)
+            inst:ClearBufferedAction()
+            inst.sg:GoToState("epic_idle")
+        end,
+	})
+
+AddStategraphState("wilson_client",State{
+		name = "mutateddeerclops_icelance",
+		tags = { "epic","epic_skill","busy" },
+        server_states = {"mutateddeerclops_icelance","mutateddeerclops_icegrow","mutateddeerclops_icegrow_pst"},
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+			inst.Transform:SetEightFaced()
+			if not inst.replica.wereepic._mutated_ice:value() then
+				inst.AnimState:PlayAnimation("throw")
+			else
+				inst.AnimState:PlayAnimation("throw_2")
+			end
+
+            local buffaction = inst:GetBufferedAction()
+            if buffaction then
+				if buffaction.pos then
+					inst:ForceFacePoint(buffaction:GetActionPoint():Get())
+					inst._facepoint_x,inst._facepoint_y,inst._facepoint_z = buffaction:GetActionPoint():Get()
+                elseif buffaction.target and buffaction.target:IsValid() then
+                    local x, y, z = buffaction.target.Transform:GetWorldPosition()
+                    inst:ForceFacePoint(x, y, z)
+                    inst._facepoint_x, inst._facepoint_y, inst._facepoint_z = x, y, z
+                    inst.sg.statemem.target = buffaction.target
+                    inst.sg.statemem.original_target = buffaction.target
+                end
+                inst.sg.statemem.targetpos = Vector3(inst._facepoint_x, inst._facepoint_y, inst._facepoint_z)
+			end
+            inst:PerformPreviewBufferedAction()
+            inst.sg:SetTimeout(inst.AnimState:GetCurrentAnimationLength() + 3*FRAMES)
+		end,
+
+		onupdate = function(inst)
+			local target = inst.sg.statemem.target
+			local p = inst.sg.statemem.targetpos
+            if target and target:IsValid() then
+                p.x, p.y, p.z = target.Transform:GetWorldPosition()
+            end
+            local rot = inst.Transform:GetRotation()
+			local rot1 = inst:GetAngleToPoint(p)
+			local drot = ReduceAngle(rot1 - rot)
+			if math.abs(drot) < 90 then
+				rot1 = rot + math.clamp(drot / 2, -1, 1)
+				inst.Transform:SetRotation(rot1)
+			end
+		end,
+
+		timeline =
+		{
+			FrameEvent(8, function(inst) inst.SoundEmitter:PlaySound("rifts3/mutated_deerclops/ice_throw_f13") end),
+			FrameEvent(30, function(inst)
+				inst.sg.statemem.target = nil
+
+				local range = TUNING.MUTATED_DEERCLOPS_ICELANCE_RANGE
+				local p = inst.sg.statemem.targetpos
+				local x, y, z = inst.Transform:GetWorldPosition()
+				local rot = inst.Transform:GetRotation() * DEGREES
+				local dist
+				if p ~= nil then
+					local dx = p.x - x
+					local dz = p.z - z
+					if dx ~= 0 or dz ~= 0 then
+						local rot1 = math.atan2(-dz, dx)
+						local diff = DiffAngleRad(rot, rot1)
+						if diff * RADIANS < 90 then
+							dist = math.sqrt(dx * dx + dz * dz) * math.cos(diff)
+							dist = math.clamp(dist, range.min, range.max)
+						else
+							dist = range.min
+						end
+					else
+						dist = range.min
+					end
+					p.y = 0
+				else
+					dist = (range.min + range.max) * 0.5
+					p = Vector3(0, 0, 0)
+					inst.sg.statemem.targetpos = p
+				end
+				p.x = x + math.cos(rot) * dist
+				p.z = z - math.sin(rot) * dist
+			end),
+			FrameEvent(47, function(inst) inst.SoundEmitter:PlaySound("rifts3/mutated_deerclops/ice_throw_f47") end),
+			FrameEvent(56, function(inst)
+				DeerclopsFootstep(inst, false, true)
+			end),
+			FrameEvent(60, function(inst)
+				inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/attack")
+			end),
+		},
+
+        ontimeout = function(inst)
+            inst:ClearBufferedAction()
+            inst.sg:GoToState("epic_idle")
+        end,
+
+		onexit = function(inst)
+			inst.Transform:SetFourFaced()
+            if not inst.replica.wereepic._mutated_ice:value() then
+				inst.AnimState:Hide("ice_0")
+			end
 		end,
 	})
 

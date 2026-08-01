@@ -5,42 +5,42 @@ local EPIC = require("wereepic_skill")
 
 local CastSelect = {
     taunt = {
-        pos = { 900, 150 },
+        pos = { -400, 150 },
         animbank = "epic_castselect_icons",
         animbuild = "epic_castselect_icons",
         animdis = "taunt",
         animfoc = "taunt_focus"
     },
     transform = {
-        pos = { 1100, 150 },
+        pos = { -200, 150 },
         animbank = "epic_castselect_icons",
         animbuild = "epic_castselect_icons",
         animdis = "transform",
         animfoc = "transform_focus"
     },
     onbecamehuman = {
-        pos = { 1300, 150 },
+        pos = { 0, 150 },
         animbank = "epic_castselect_icons",
         animbuild = "epic_castselect_icons",
         animdis = "onbecamehuman",
         animfoc = "onbecamehuman_focus",
     },
     skill1 = {
-        pos = { 1500, 150 },
+        pos = { 200, 150 },
         animbank = "epic_castselect_icons",
         animbuild = "epic_castselect_icons",
         animdis = "skill1",
         animfoc = "skill1_focus"
     },
     skill2 = {
-        pos = { 1700, 150 },
+        pos = { 400, 150 },
         animbank = "epic_castselect_icons",
         animbuild = "epic_castselect_icons",
         animdis = "skill2",
         animfoc = "skill2_focus"
     },
     skill3 = {
-        pos = { 1900, 150 },
+        pos = { 600, 150 },
         animbank = "epic_castselect_icons",
         animbuild = "epic_castselect_icons",
         animdis = "skill3",
@@ -78,6 +78,9 @@ local Hide_Skill = {
 local EpicCastSelect = Class(Widget, function(self, owner)
     Widget._ctor(self, "EpicCastSelect")
     self.owner = owner
+
+    self:SetHAnchor(ANCHOR_MIDDLE)
+    self:SetVAnchor(ANCHOR_BOTTOM)
 
     self:SetClickable(true)
     self.casts = {}
@@ -192,7 +195,7 @@ function EpicCastSelect:OnHide()
     self:StopUpdating()
     self.updating = false
     for _, anim in pairs(self.casts) do
-        anim:SetPosition(1300, 150)
+        anim:SetPosition(0, 150)
         OnUnSelect("none",anim)
     end
     self.hovered_spell = nil
@@ -204,7 +207,7 @@ function EpicCastSelect:OnUpdate(dt)
     if elapsedTime < duration then
         for name, anim in pairs(self.casts) do
             local target_pos = CastSelect[name].pos
-            local x = easing.outQuad(elapsedTime, 1300, target_pos[1]-1300, duration)
+            local x = easing.outQuad(elapsedTime, 0, target_pos[1], duration)
             local y = easing.outQuad(elapsedTime, 150, target_pos[2]-150, duration)
             anim:GetAnimState():SetMultColour(1, 1, 1, elapsedTime / duration)
             anim:SetPosition(x, y)
@@ -244,7 +247,7 @@ function EpicCastSelect:OnUpdate(dt)
     end
 
     if hovered ~= nil and hovered ~= self.hovered_spell then
-        TheFrontEnd:GetSound():PlaySound("dontstarve/HUD/click_move")
+        TheFrontEnd:GetSound():PlaySound("epic_castselect_icons/epic_castselect_icons/idle")
     end
 
     self.hovered_spell = hovered
@@ -252,7 +255,7 @@ end
 function EpicCastSelect:OnMouseButton(button, down, x, y)
     if button == MOUSEBUTTON_LEFT and not down then
         if self.casts[self.hovered_spell] and not self:IsCoolingDown(self.hovered_spell) then
-            TheFrontEnd:GetSound():PlaySound("dontstarve/HUD/click_move")
+            TheFrontEnd:GetSound():PlaySound("epic_castselect_icons/epic_castselect_icons/click")
             SendModRPCToServer(MOD_RPC["WEREEPIC"][self.hovered_spell])
         end
         return true

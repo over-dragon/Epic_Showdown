@@ -4,8 +4,10 @@ Assets = {
     Asset("ANIM", "anim/epic_castselect_icons.zip"),
     Asset("IMAGE","images/epickeepsake_filter.tex"),
 	Asset("ATLAS", "images/epickeepsake_filter.xml"),
-    Asset("IMAGE","images/headframe.tex"),
-	Asset("ATLAS", "images/headframe.xml"),
+    Asset("IMAGE","images/epicorigin_filter.tex"),
+	Asset("ATLAS", "images/epicorigin_filter.xml"),
+    Asset("SOUNDPACKAGE", "sound/epic_castselect_icons.fev"),
+    Asset("SOUND", "sound/epic_castselect_icons.fsb"),
 }
 
 PrefabFiles = {
@@ -19,6 +21,9 @@ PrefabFiles = {
     "epic_alterguardian_phase3trap",
     "stalker_fossil_spike2",
     "epic_mutatedwarg_fx",
+    "epic_mutatedbearger_fx",
+    "epicorigin",
+    "epic_chaosseed",
 }
 
 AddReplicableComponent("wereepic")

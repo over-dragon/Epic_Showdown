@@ -17,6 +17,9 @@ function WereEpic_UseableItem:StartUsing(doer)
         if doer.components.wereepic then
             doer.components.wereepic:SetEpicMode(self.inst.epic_mode)
         end
+        if self.inst.components.rechargeable then
+            self.inst.components.rechargeable:Discharge(240)
+        end
         return true
     else
         return false

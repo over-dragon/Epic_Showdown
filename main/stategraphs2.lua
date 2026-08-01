@@ -592,6 +592,91 @@ local function DoFlamethrowerAOE(inst, angle, targets)
 	inst.components.combat.ignoredamagereflect = false
 end
 
+---mutatedbearger
+local AOE_TARGET_MUSTHAVE_TAGS = { "_combat" }
+
+local function DoAOEAttack(inst, dist, radius, heavymult, mult, forcelanded, targets, knockback_existing_targets)
+	inst.components.combat.ignorehitrange = true
+	local x, y, z = inst.Transform:GetWorldPosition()
+	local rot = inst.Transform:GetRotation() * DEGREES
+	if dist ~= 0 then
+		x = x + dist * math.cos(rot)
+		z = z - dist * math.sin(rot)
+	end
+	for i, v in ipairs(TheSim:FindEntities(x, y, z, radius + AOE_RANGE_PADDING, AOE_TARGET_MUSTHAVE_TAGS, AOE_TARGET_CANT_TAGS)) do
+		if v ~= inst and v:IsValid() and not v:IsInLimbo() and
+			not (v.components.health ~= nil and v.components.health:IsDead())
+		then
+			local is_existing_target = targets ~= nil and targets[v]
+			if not is_existing_target or knockback_existing_targets then
+				local range = radius + v:GetPhysicsRadius(0)
+				local distsq = v:GetDistanceSqToPoint(x, y, z)
+				if distsq < range * range then
+					local should_knockback = is_existing_target
+					if not is_existing_target and inst.components.combat:CanTarget(v) then
+						if targets then
+							targets[v] = true
+							if mult and v.components.rider and v.components.rider.mount then
+								targets[v.components.rider.mount] = true
+							end
+						end
+						inst.components.combat:DoAttack(v)
+						should_knockback = true
+					end
+					if should_knockback and mult ~= nil then
+						v:PushEvent("knockback", { knocker = inst, radius = radius + dist, strengthmult = (v.components.inventory ~= nil and v.components.inventory:ArmorHasTag("heavyarmor") or v:HasTag("heavybody")) and heavymult or mult, forcelanded = forcelanded })
+					end
+				end
+			end
+		end
+	end
+	inst.components.combat.ignorehitrange = false
+end
+---mutateddeerclops
+local ICE_LANCE_RADIUS = 5.5
+local AREAATTACK_MUST_TAGS = { "_combat" }
+local AREA_EXCLUDE_TAGS = { "INLIMBO", "notarget", "noattack", "playerghost" }
+local function DoIceLanceAOE(inst, pt, targets)
+	inst.components.combat.ignorehitrange = true
+	local dist = math.sqrt(inst:GetDistanceSqToPoint(pt))
+	local ents = TheSim:FindEntities(pt.x, 0, pt.z, ICE_LANCE_RADIUS, AREAATTACK_MUST_TAGS, AREA_EXCLUDE_TAGS)
+	for i, v in ipairs(ents) do
+		if not targets[v] and v:IsValid() and not v:IsInLimbo() and
+			not (v.components.health ~= nil and v.components.health:IsDead()) and
+			inst.components.combat:CanTarget(v)
+		then
+			local wasfrozen = v.components.freezable ~= nil and v.components.freezable:IsFrozen()
+			if wasfrozen and v.components.rider and v.components.rider.mount then
+				targets[v.components.rider.mount] = true
+			end
+			inst.components.combat:DoAttack(v)
+			if wasfrozen then
+				v:PushEvent("knockback", { knocker = inst, radius = dist + ICE_LANCE_RADIUS })
+			end
+			targets[v] = true
+		end
+	end
+	inst.components.combat.ignorehitrange = false
+end
+
+local function DeerclopsFootstep(inst, moving, noice)
+	inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/step")
+	ShakeAllCameras(CAMERASHAKE.VERTICAL, .5, .03, 1, inst, 40)
+
+	if not noice and inst.sg.mem.mutateddeerclops_circle ~= nil then
+		inst.sg.mem.mutateddeerclops_circle:KillFX()
+		inst.sg.mem.mutateddeerclops_circle = SpawnPrefab("deerclops_aura_circle_fx")
+		local x, y, z = inst.Transform:GetWorldPosition()
+		if moving then
+			local rot = inst.Transform:GetRotation() * DEGREES
+			x = x + math.cos(rot) * 1.5
+			z = z - math.sin(rot) * 1.5
+		end
+		inst.sg.mem.mutateddeerclops_circle.Transform:SetPosition(x, 0, z)
+		inst.sg.mem.mutateddeerclops_circle.SoundEmitter:PlaySound("dontstarve/common/break_iceblock", nil, 0.4)
+	end
+end
+
 AddStategraphEvent("wilson", EventHandler("onload_wereepic", function(inst,data)
     if data and data.mode~="none" then
         inst.sg:GoToState("epic_castspell_onload",{mode = data.mode})
@@ -670,7 +755,7 @@ AddStategraphState("wilson",State{
             local mode = inst.components.wereepic and inst.components.wereepic:GetEpicMode()
             inst.components.locomotor:Stop()
             inst:ClearBufferedAction()
-            if mode=="bearger" then
+            if mode=="bearger" or mode=="mutatedbearger" then
                 inst.AnimState:PlayAnimation("standing_hit")
             else
                 inst.AnimState:PlayAnimation("hit")
@@ -915,7 +1000,7 @@ AddStategraphState("wilson",State{
             local mode = inst.components.wereepic and inst.components.wereepic:GetEpicMode()
             inst.components.locomotor:Stop()
             inst:ClearBufferedAction()
-            if mode=="bearger" then
+            if mode=="bearger" or mode=="mutatedbearger" then
                 inst.AnimState:PlayAnimation("standing_sleep_pre")
 				inst.AnimState:PushAnimation("sleep_pre", false)
                 inst.AnimState:PushAnimation("sleep_loop",true)
@@ -1499,7 +1584,7 @@ AddStategraphState("wilson",State{
                     inst._facepoint_x, inst._facepoint_y, inst._facepoint_z = x, y, z
                     inst.sg.statemem.target = buffaction.target
                 end
-                inst.sg.statemem.targetpos = buffaction:GetActionPoint()
+                inst.sg.statemem.targetpos = Vector3(inst._facepoint_x, inst._facepoint_y, inst._facepoint_z)
 			end
             inst:PerformBufferedAction()
 		end,
@@ -1727,6 +1812,470 @@ AddStategraphState("wilson",State{
 			inst.Transform:SetSixFaced()
 			inst.SoundEmitter:KillSound("loop")
 		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "mutatedbearger_butt_pre",
+		tags = { "epic","epic_skill","busy" },
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+            inst:RemoveTag("mutatedbearger_butt_skill")
+            local target = nil
+            local buffaction = inst:GetBufferedAction()
+            if buffaction then
+				if buffaction.pos then
+					inst._facepoint_x,inst._facepoint_y,inst._facepoint_z = buffaction:GetActionPoint():Get()
+                elseif buffaction.target and buffaction.target:IsValid() then
+                    local x, y, z = buffaction.target.Transform:GetWorldPosition()
+                    inst._facepoint_x, inst._facepoint_y, inst._facepoint_z = x, y, z
+                    target = buffaction.target
+                    inst.sg.statemem.target = target
+                end
+                inst.sg.statemem.targetpos = buffaction:GetActionPoint()
+			end
+			local left
+            local x1, y1, z1 = inst._facepoint_x,inst._facepoint_y,inst._facepoint_z
+            if inst.sg.statemem.targetpos then
+                x1, y1, z1 = inst.sg.statemem.targetpos:Get()
+            else
+                inst.sg.statemem.targetpos = Vector3(inst._facepoint_x,inst._facepoint_y,inst._facepoint_z)
+            end
+
+            local rot = inst.Transform:GetRotation()
+            local facing_diff = ReduceAngle(inst:GetAngleToPoint(x1, y1, z1) - rot)
+            if math.abs(facing_diff) < 90 then
+                local px, py, pz = inst.Transform:GetWorldPosition()
+                x1 = 2 * px - x1
+                y1 = 2 * py - y1
+                z1 = 2 * pz - z1
+                inst._facepoint_x, inst._facepoint_y, inst._facepoint_z = x1, y1, z1
+                inst.sg.statemem.targetpos = Vector3(x1, y1, z1)
+            end
+
+			local rot = inst.Transform:GetRotation()
+			local rot1 = inst:GetAngleToPoint(x1, y1, z1) + 180
+			local drot = ReduceAngle(rot1 - rot)
+			if drot ~= 0 and math.abs(drot) < 90 then
+				left = drot > 0
+				inst.sg.statemem.left = left
+			end
+
+			if left == nil then
+				left = math.random() < 0.5
+			end
+			inst.AnimState:PlayAnimation(left and "butt_pre_L" or "butt_pre_R")
+            inst:PerformBufferedAction()
+		end,
+
+		timeline =
+		{
+			FrameEvent(0, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/bearger/attack") end),
+			FrameEvent(23, function(inst)
+				local p = inst.sg.statemem.targetpos
+				if p ~= nil then
+					local rot2
+					local target = inst.sg.statemem.target
+                    local x1, y1, z1 = inst.sg.statemem.targetpos:Get()
+					if target ~= nil and target:IsValid() then
+						x1, y1, z1 = target.Transform:GetWorldPosition()
+                    end
+						local rot = inst.Transform:GetRotation()
+						local rot1 = inst:GetAngleToPoint(x1, y1, z1) + 180
+						local drot = ReduceAngle(rot1 - rot)
+						local left = drot > 0
+						if drot ~= 0 and math.abs(drot) < (left == inst.sg.statemem.left and 90 or 30) then
+							rot2 = rot + drot / 2
+							p.x, p.y, p.z = x1, y1, z1
+						end
+					if rot2 == nil then
+						rot2 = inst:GetAngleToPoint(p) + 180
+					end
+					inst.Transform:SetRotation(rot2)
+				end
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					local data = inst.sg.statemem.targetpos ~= nil and {
+						targetpos = inst.sg.statemem.targetpos,
+						target = inst.sg.statemem.target,
+					} or nil
+					inst.sg:GoToState("mutatedbearger_butt", data)
+				end
+			end),
+		},
+	})
+
+AddStategraphState("wilson",State{
+		name = "mutatedbearger_butt",
+		tags = { "busy", "jumping", "nointerrupt" ,"epic","epic_skill","nopredict", "nomorph"},
+
+		onenter = function(inst, data)
+			inst.components.locomotor:Stop()
+			inst.AnimState:PlayAnimation("butt")
+			local dist
+			if data ~= nil then
+				if data.running then
+					dist = 6
+				else
+					local x, y, z = inst.Transform:GetWorldPosition()
+
+					local x1, y1, z1 = data.targetpos:Get()
+                    if data.target ~= nil and data.target:IsValid() then
+                        x1, y1, z1 = data.target.Transform:GetWorldPosition()
+                    end
+					local dx = x1 - x
+					local dz = z1 - z
+					if dx ~= 0 or dz ~= 0 then
+						local rot = inst.Transform:GetRotation() * DEGREES
+						local rot1 = math.atan2(-dz, dx) + PI
+						local diff = DiffAngleRad(rot, rot1)
+						if diff < PI / 4 then
+							dist = math.sqrt(dx * dx + dz * dz)
+							dist = dist * math.cos(diff)
+						end
+					end
+
+					if dist == nil and data.targetpos ~= nil then
+						local dx = data.targetpos.x - x
+						local dz = data.targetpos.z - z
+						if dx ~= 0 or dz ~= 0 then
+							dist = math.sqrt(dx * dx + dz * dz)
+						end
+					end
+				end
+				inst.sg.statemem.original_target = data.target --remember for onmissother event
+			end
+			dist = math.clamp(dist or 3, 3, 6)
+			inst.Physics:SetMotorVelOverride(-dist / inst.AnimState:GetCurrentAnimationLength(), 0, 0)
+		end,
+
+		timeline =
+		{
+			FrameEvent(8, function(inst)
+				local pt = inst:GetPosition()
+				local rot = inst.Transform:GetRotation() * DEGREES
+				local dist = -1
+				pt.x = pt.x + dist * math.cos(rot)
+				pt.y = 0
+				pt.z = pt.z - dist * math.sin(rot)
+
+				inst.sg.statemem.targets = {}
+				inst.components.groundpounder:GroundPound(pt, inst.sg.statemem.targets)
+				inst.SoundEmitter:PlaySound("rifts3/mutated_bearger/buttslam")
+			end),
+			FrameEvent(9, function(inst)
+				local x, y, z = inst.Transform:GetWorldPosition()
+				local rot = inst.Transform:GetRotation() * DEGREES
+				local dist = -1
+				x = x + dist * math.cos(rot)
+				z = z - dist * math.sin(rot)
+
+				--extra "true" to knockback existing targets from groundpound
+				DoAOEAttack(inst, dist, 4, 1.2, 1.5, nil, inst.sg.statemem.targets, true)
+
+				local sinkhole = SpawnPrefab("bearger_sinkhole")
+				sinkhole.Transform:SetPosition(x, 0, z)
+				sinkhole:PushEvent("docollapse")
+
+				ShakeAllCameras(CAMERASHAKE.VERTICAL, .7, .025, 1.25, inst, 40)
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg.statemem.butt = true
+					inst.sg:GoToState("mutatedbearger_butt_pst", {
+						target = inst.sg.statemem.original_target,
+						targets = inst.sg.statemem.targets,
+					})
+				end
+			end),
+		},
+
+		onexit = function(inst)
+			if not inst.sg.statemem.butt then
+				inst.Physics:ClearMotorVelOverride()
+				inst.Physics:Stop()
+			end
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "mutatedbearger_butt_pst",
+		tags = { "busy", "jumping", "noelectrocute","epic","epic_skill","nopredict", "nomorph" },
+
+		onenter = function(inst, data)
+			inst.components.locomotor:Stop()
+			inst.AnimState:PlayAnimation("butt_pst")
+            inst.AnimState:PushAnimation("to_bi",false)
+			if data ~= nil and data.targets ~= nil then
+				DoAOEAttack(inst, -1, 4, 1.2, 1.5, nil, data.targets)
+				if next(data.targets) == nil then
+					inst:PushEvent("onmissother", { target = data.target }) --for ChaseAndAttack
+				end
+			end
+		end,
+
+		timeline =
+		{
+			FrameEvent(0, function(inst) inst.Physics:SetMotorVelOverride(-4, 0, 0) end),
+			FrameEvent(1, function(inst) inst.Physics:SetMotorVelOverride(-2, 0, 0) end),
+			FrameEvent(2, function(inst) inst.Physics:SetMotorVelOverride(-1, 0, 0) end),
+			FrameEvent(3, function(inst) inst.Physics:SetMotorVelOverride(-0.5, 0, 0) end),
+			FrameEvent(4, function(inst)
+				inst.Physics:ClearMotorVelOverride()
+				inst.Physics:Stop()
+				inst.sg:RemoveStateTag("jumping")
+			end),
+			FrameEvent(41, function(inst)
+				inst.sg:RemoveStateTag("noelectrocute")
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg:GoToState("epic_idle")
+				end
+			end),
+		},
+
+		onexit = function(inst)
+			inst.Physics:ClearMotorVelOverride()
+			inst.Physics:Stop()
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "mutateddeerclops_icelance",
+		tags = { "epic","epic_skill","busy" },
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+			inst.Transform:SetEightFaced()
+			if not inst.replica.wereepic._mutated_ice:value() then
+				inst.AnimState:PlayAnimation("throw")
+			else
+				inst.AnimState:PlayAnimation("throw_2")
+			end
+
+            local buffaction = inst:GetBufferedAction()
+            if buffaction then
+				if buffaction.pos then
+					inst:ForceFacePoint(buffaction:GetActionPoint():Get())
+					inst._facepoint_x,inst._facepoint_y,inst._facepoint_z = buffaction:GetActionPoint():Get()
+                elseif buffaction.target and buffaction.target:IsValid() then
+                    local x, y, z = buffaction.target.Transform:GetWorldPosition()
+                    inst:ForceFacePoint(x, y, z)
+                    inst._facepoint_x, inst._facepoint_y, inst._facepoint_z = x, y, z
+                    inst.sg.statemem.target = buffaction.target
+                    inst.sg.statemem.original_target = buffaction.target
+                end
+                inst.sg.statemem.targetpos = Vector3(inst._facepoint_x, inst._facepoint_y, inst._facepoint_z)
+			end
+            inst:PerformBufferedAction()
+		end,
+
+		onupdate = function(inst)
+			local target = inst.sg.statemem.target
+			local p = inst.sg.statemem.targetpos
+            if target and target:IsValid() then
+                p.x, p.y, p.z = target.Transform:GetWorldPosition()
+            end
+            local rot = inst.Transform:GetRotation()
+			local rot1 = inst:GetAngleToPoint(p)
+			local drot = ReduceAngle(rot1 - rot)
+			if math.abs(drot) < 90 then
+				rot1 = rot + math.clamp(drot / 2, -1, 1)
+				inst.Transform:SetRotation(rot1)
+			end
+		end,
+
+		timeline =
+		{
+			FrameEvent(8, function(inst) inst.SoundEmitter:PlaySound("rifts3/mutated_deerclops/ice_throw_f13") end),
+			FrameEvent(30, function(inst)
+				inst.sg.statemem.target = nil
+
+				local range = TUNING.MUTATED_DEERCLOPS_ICELANCE_RANGE
+				local p = inst.sg.statemem.targetpos
+				local x, y, z = inst.Transform:GetWorldPosition()
+				local rot = inst.Transform:GetRotation() * DEGREES
+				local dist
+				if p ~= nil then
+					local dx = p.x - x
+					local dz = p.z - z
+					if dx ~= 0 or dz ~= 0 then
+						local rot1 = math.atan2(-dz, dx)
+						local diff = DiffAngleRad(rot, rot1)
+						if diff * RADIANS < 90 then
+							dist = math.sqrt(dx * dx + dz * dz) * math.cos(diff)
+							dist = math.clamp(dist, range.min, range.max)
+						else
+							dist = range.min
+						end
+					else
+						dist = range.min
+					end
+					p.y = 0
+				else
+					dist = (range.min + range.max) * 0.5
+					p = Vector3(0, 0, 0)
+					inst.sg.statemem.targetpos = p
+				end
+				p.x = x + math.cos(rot) * dist
+				p.z = z - math.sin(rot) * dist
+
+				inst.sg.statemem.ping = SpawnPrefab("deerclops_icelance_ping_fx")
+				inst.sg.statemem.ping.Transform:SetPosition(p:Get())
+			end),
+			FrameEvent(34, function(inst)
+				inst.components.burnable:Extinguish()
+			end),
+			FrameEvent(47, function(inst) inst.SoundEmitter:PlaySound("rifts3/mutated_deerclops/ice_throw_f47") end),
+			FrameEvent(56, function(inst)
+				DeerclopsFootstep(inst, false, true)
+			end),
+			FrameEvent(60, function(inst)
+				inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/attack")
+				inst.sg.statemem.ping:KillFX()
+				inst.sg.statemem.ping = nil
+
+				local lance = SpawnPrefab("deerclops_impact_circle_fx")
+				lance.Transform:SetPosition(inst.sg.statemem.targetpos:Get())
+				inst.sg.statemem.targets = {}
+				inst.components.combat:SetDefaultDamage(TUNING.MUTATED_DEERCLOPS_ICELANCE_DAMAGE)
+				DoIceLanceAOE(inst, inst.sg.statemem.targetpos, inst.sg.statemem.targets)
+			end),
+			FrameEvent(61, function(inst)
+				DoIceLanceAOE(inst, inst.sg.statemem.targetpos, inst.sg.statemem.targets)
+			end),
+			FrameEvent(62, function(inst)
+				DoIceLanceAOE(inst, inst.sg.statemem.targetpos, inst.sg.statemem.targets)
+				if next(inst.sg.statemem.targets) == nil then
+					inst:PushEvent("onmissother", { target = inst.sg.statemem.original_target }) --for ChaseAndAttack
+				end
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+                    if inst.replica.wereepic._mutated_ice:value() then
+                        inst.sg:GoToState("mutateddeerclops_icegrow")
+                    else
+                        inst.sg:GoToState("epic_idle")
+                    end
+				end
+			end),
+		},
+
+		onexit = function(inst)
+			inst.Transform:SetFourFaced()
+			if not inst.replica.wereepic._mutated_ice:value() then
+				inst.AnimState:Hide("ice_0")
+                inst.replica.wereepic._mutated_ice:set(true)
+			elseif inst.replica.wereepic._mutated_ice:value() then
+				inst.AnimState:Hide("ice_1")
+			end
+			if inst.sg.statemem.ping ~= nil then
+				inst.sg.statemem.ping:KillFX()
+			end
+			inst.components.combat:SetDefaultDamage(TUNING.MUTATED_DEERCLOPS_DAMAGE)
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "mutateddeerclops_icegrow",
+		tags = { "icegrow", "busy","epic","epic_skill","nopredict", "nomorph" },
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+			inst.AnimState:PlayAnimation("ice_grow")
+
+			inst.SoundEmitter:PlaySound("rifts3/mutated_deerclops/ice_crackling_LP", "loop")
+
+            if inst.components.playercontroller then
+                inst.components.playercontroller:RemotePausePrediction()
+            end
+		end,
+
+		timeline =
+		{
+			FrameEvent(7, function(inst)
+				DeerclopsFootstep(inst, false, true)
+			end),
+			FrameEvent(9, function(inst)
+				inst.components.burnable:Extinguish()
+				if inst.sg.mem.mutateddeerclops_circle == nil then
+					inst.sg.mem.mutateddeerclops_circle = SpawnPrefab("deerclops_aura_circle_fx")
+					local x, y, z = inst.Transform:GetWorldPosition()
+					inst.sg.mem.mutateddeerclops_circle.Transform:SetPosition(x, 0, z)
+					inst.sg.mem.mutateddeerclops_circle:GrowFX()
+				end
+			end),
+			FrameEvent(5, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/taunt_grrr") end),
+			FrameEvent(6, function(inst)
+				inst.SoundEmitter:PlaySound("rifts3/mutated_deerclops/ice_grow_4f_leadin")
+			end),
+			FrameEvent(9, function(inst)
+				inst.SoundEmitter:PlaySound("rifts3/mutated_deerclops/ice_grow_4f_leadin")
+			end),
+			FrameEvent(13, function(inst)
+				inst.SoundEmitter:KillSound("loop")
+                inst.replica.wereepic._mutated_ice:set(false)
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg:GoToState("mutateddeerclops_icegrow_pst")
+				end
+			end),
+		},
+
+		onexit = function(inst)
+			inst.AnimState:Show("ice_1")
+			inst.AnimState:Show("ice_0")
+			inst.SoundEmitter:KillSound("loop")
+            inst.replica.wereepic._mutated_ice:set(false)
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "mutateddeerclops_icegrow_pst",
+		tags = { "busy","epic","epic_skill","nopredict", "nomorph" },
+
+		onenter = function(inst)
+			inst.AnimState:PlayAnimation("ice_grow_pst")
+		end,
+
+		timeline =
+		{
+			FrameEvent(14, function(inst)
+				inst.sg:GoToState("epic_idle")
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg:GoToState("epic_idle")
+				end
+			end),
+		},
 	})
 
 AddStategraphPostInit("wilson", function(sg)

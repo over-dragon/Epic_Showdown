@@ -157,6 +157,7 @@ local WereEpic = Class(function(self, inst)
     self._is_epic = net_bool(inst.GUID, "wereepic._is_epic", "epicdirty")
     self._epic_mode = net_string(inst.GUID, "wereepic._epic_mode","epicmodedirty")
     self._phase2 = net_int(inst.GUID, "alterguardian.epic_phase2_summon","alterguardian_phase2_atk_summon")
+    self._mutated_ice = net_bool(inst.GUID, "mutateddeerclops.epic_mutated_ice","mutateddeerclops_epic_mutated_ice")
 
     if TheWorld.ismastersim then
         self.classified = inst.player_classified
