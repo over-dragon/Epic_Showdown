@@ -51,7 +51,7 @@ local LANGS = {
                 {'关闭',0},
                 {'开启',1}
             }},
-            {modid..'_caselect_music','技能施法音效','',0,{
+            {modid..'_caselect_music','技能施法音效','',1,{
                 {'关闭',0},
                 {'开启',1}
             }},
