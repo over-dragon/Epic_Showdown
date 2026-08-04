@@ -25,6 +25,7 @@ local function MakeEpicKeepsake(epic_mode)
         inst.AnimState:SetBank("epic_keepsakes")
         inst.AnimState:SetBuild("epic_keepsakes")
         inst.AnimState:PlayAnimation(epic_mode)
+        inst.AnimState:SetHaunted(true)
         inst.scrapbook_anim = epic_mode
 
         inst:AddTag("epickeepsake")
@@ -50,8 +51,6 @@ local function MakeEpicKeepsake(epic_mode)
         inst.components.finiteuses:SetUses(3)
         inst.components.finiteuses:SetConsumption(ACTIONS.EPIC_USEITEM, 1)
         inst.components.finiteuses:SetOnFinished(inst.Remove)
-
-        MakeHauntableLaunchAndPerish(inst)
 
         inst.epic_mode = epic_mode
 

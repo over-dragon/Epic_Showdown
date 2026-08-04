@@ -82,6 +82,10 @@ local NON_COLLAPSIBLE_TAGS = { "antlion", "groundspike", "playerghost", "FX","DE
 local TOSSITEM_MUST_TAGS = { "_inventoryitem" }
 local TOSSITEM_CANT_TAGS = { "locomotor", "INLIMBO" }
 
+if not TheNet:GetPVPEnabled() then
+    table.insert(NON_COLLAPSIBLE_TAGS,"player")
+end
+
 local function DoBreak(inst)
     inst.task = nil
     inst.components.health:Kill()

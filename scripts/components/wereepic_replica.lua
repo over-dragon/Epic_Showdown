@@ -171,7 +171,7 @@ local WereEpic = Class(function(self, inst)
             self:SetEpicVision()
             SetEpicActions(self,true)
             if not TheWorld.ismastersim then
-                if EPIC[self._epic_mode:value()] and TUNING.EPIC_WORLD.BGM==1 then
+                if EPIC[self._epic_mode:value()] and TUNING.EPIC_WORLD.BGM==1 and self.inst == ThePlayer then
                     TheWorld:PushEvent("enabledynamicmusic", false)
                     if not TheFocalPoint.SoundEmitter:PlayingSound("epicmusic") then
                         TheFocalPoint.SoundEmitter:PlaySound(
@@ -194,8 +194,10 @@ local WereEpic = Class(function(self, inst)
             self:ClearEpicVision()
             SetEpicActions(self,false)
             if not TheWorld.ismastersim then
-                TheWorld:PushEvent("enabledynamicmusic", true)
-                TheFocalPoint.SoundEmitter:KillSound("epicmusic")
+                if self.inst == ThePlayer then
+                    TheWorld:PushEvent("enabledynamicmusic", true)
+                    TheFocalPoint.SoundEmitter:KillSound("epicmusic")
+                end
                 inst:PushEvent("gogglevision", { enabled = false })
                 if self.inst.HUD and self.inst.HUD.controls.epiccastselect then
                     self.inst.HUD.controls.epiccastselect:Hide()

@@ -1575,7 +1575,7 @@ local function do_summon_spawn(inst)
     local ix, _, iz = inst.Transform:GetWorldPosition()
     for i, p in ipairs(AllPlayers) do
         local dsq_to_player = p:GetDistanceSqToPoint(ix, 0, iz)
-        if dsq_to_player < TUNING.ALTERGUARDIAN_PHASE3_SUMMONRSQ and p~=inst and TheNet:GetPVPEnabled() then
+        if dsq_to_player < TUNING.ALTERGUARDIAN_PHASE3_SUMMONRSQ and p~=inst and TheNet:GetPVPEnabled() and not p:HasTag("epic") then
             -- Don't count ghosts, and don't "sleep-camp" players that are knocked out.
             if (p.components.grogginess ~= nil and not p.components.grogginess:IsKnockedOut())
                     and not p:HasTag("playerghost") then

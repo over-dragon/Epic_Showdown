@@ -1208,7 +1208,7 @@ local WEREEPIC_BOSS = {
             end
 
             if inst.components.planardamage then
-                inst.components.planardamage:SetBaseDamage(TUNING.MUTATED_WARG_PLANAR_DAMAGE)
+                inst.components.planardamage:AddBonus(inst,TUNING.MUTATED_WARG_PLANAR_DAMAGE,"mutatedwarg")
             end
 
             if inst.components.sanity then
@@ -1262,7 +1262,7 @@ local WEREEPIC_BOSS = {
             end
 
             if inst.components.planardamage then
-                inst.components.planardamage:SetBaseDamage(0)
+                inst.components.planardamage:RemoveBonus(inst,"mutatedwarg")
             end
 
             if inst.components.sanity then
@@ -1321,7 +1321,7 @@ local WEREEPIC_BOSS = {
             end
 
             if inst.components.planardamage then
-                inst.components.planardamage:SetBaseDamage(TUNING.MUTATED_BEARGER_PLANAR_DAMAGE)
+                inst.components.planardamage:AddBonus(inst,TUNING.MUTATED_BEARGER_PLANAR_DAMAGE,"mutatedbearger")
             end
 
             if inst.components.sanity then
@@ -1378,7 +1378,7 @@ local WEREEPIC_BOSS = {
             end
 
             if inst.components.planardamage then
-                inst.components.planardamage:SetBaseDamage(0)
+                inst.components.planardamage:RemoveBonus(inst,"mutatedbearger")
             end
 
             if inst.components.sanity then
@@ -1452,7 +1452,7 @@ local WEREEPIC_BOSS = {
             end
 
             if inst.components.planardamage then
-                inst.components.planardamage:SetBaseDamage(TUNING.MUTATED_DEERCLOPS_PLANAR_DAMAGE)
+                inst.components.planardamage:AddBonus(inst,TUNING.MUTATED_DEERCLOPS_PLANAR_DAMAGE,"mutateddeerclops")
             end
 
             if inst.components.sanity then
@@ -1484,7 +1484,7 @@ local WEREEPIC_BOSS = {
             end
 
             if inst.components.planardamage then
-                inst.components.planardamage:SetBaseDamage(0)
+                inst.components.planardamage:RemoveBonus(inst,"mutateddeerclops")
             end
 
             if inst.components.sanity then

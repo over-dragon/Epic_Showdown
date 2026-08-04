@@ -8,6 +8,7 @@ local WereEpic = Class(function(self, inst)
     self.drownable = false
     self.canbepinned = true
     self.maxhealth = 150
+    self.planar = false
 end,
 nil,
 {
@@ -15,8 +16,8 @@ nil,
 })
 
 local function SetVision(self,bool)
-    self.inst.replica.wereepic._is_epic:set(bool)
     self.inst.replica.wereepic._epic_mode:set(self.mode)
+    self.inst.replica.wereepic._is_epic:set(bool)
 end
 
 local shatterfx =
@@ -517,6 +518,14 @@ function WereEpic:OnBecameEpic()
     if EPIC[self.mode].master_postinit then
         EPIC[self.mode].master_postinit(self.inst)
     end
+    if self.planar then
+        if self.inst.components.planardamage then
+            self.inst.components.planardamage:AddBonus(self.inst, 30, "epic_planardamage")
+        end
+        if self.inst.components.planardefense then
+            self.inst.components.planardefense:AddBonus(self.inst, 15, "epic_planardefense")
+        end
+    end
 end
 
 function WereEpic:OnBecameHuman()
@@ -536,15 +545,28 @@ function WereEpic:OnBecameHuman()
         local level = self.inst.components.upgrademoduleowner:GetChargeLevel()
         self.inst.components.upgrademoduleowner:SetChargeLevel(level)
     end
+    if self.planar then
+        if self.inst.components.planardamage then
+            self.inst.components.planardamage:RemoveBonus(self.inst, "epic_planardamage")
+        end
+        if self.inst.components.planardefense then
+            self.inst.components.planardefense:RemoveBonus(self.inst, "epic_planardefense")
+        end
+        self.planar = false
+    end
 end
 
 function WereEpic:OnSave()
     return {
-        mode = self.mode
+        mode = self.mode,
+        planar = self.planar
     }
 end
 function WereEpic:OnLoad(data)
     if data~=nil then
+        if data.planar then
+            self.planar = data.planar
+        end
         if EPIC[data.mode] then
             self.mode = data.mode
             self.inst:PushEvent("onload_wereepic",{mode = self.mode})

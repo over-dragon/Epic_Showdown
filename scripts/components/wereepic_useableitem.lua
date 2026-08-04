@@ -16,6 +16,9 @@ function WereEpic_UseableItem:StartUsing(doer)
 	if self:CanInteract(doer) then
         if doer.components.wereepic then
             doer.components.wereepic:SetEpicMode(self.inst.epic_mode)
+            if self.inst:HasTag("epicorigin") then
+                doer.components.wereepic.planar = true
+            end
         end
         if self.inst.components.rechargeable then
             self.inst.components.rechargeable:Discharge(240)

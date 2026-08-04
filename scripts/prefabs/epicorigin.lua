@@ -63,8 +63,6 @@ local function MakeEpicOrigin(epic_mode)
         inst.components.rechargeable:SetOnDischargedFn(OnDischarged)
         inst.components.rechargeable:SetOnChargedFn(OnCharged)
 
-        MakeHauntableLaunchAndPerish(inst)
-
         inst.epic_mode = epic_mode
 
         return inst

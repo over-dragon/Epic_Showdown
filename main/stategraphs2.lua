@@ -1445,7 +1445,7 @@ AddStategraphState("wilson",State{
         onenter = function(inst)
             inst.components.locomotor:StopMoving()
             inst.AnimState:PlayAnimation("control_pre")
-            inst.sg.statemem.count = 2
+            inst.sg.statemem.count = 4
             if inst.components.playercontroller then
                 inst.components.playercontroller:RemotePausePrediction()
             end

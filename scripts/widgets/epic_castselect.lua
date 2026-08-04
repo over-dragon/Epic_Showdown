@@ -194,6 +194,9 @@ end
 function EpicCastSelect:OnHide()
     self:StopUpdating()
     self.updating = false
+    if self.owner==ThePlayer then
+        TheFocalPoint.SoundEmitter:KillSound("epic_castselect_music")
+    end
     for _, anim in pairs(self.casts) do
         anim:SetPosition(0, 150)
         OnUnSelect("none",anim)
@@ -246,8 +249,14 @@ function EpicCastSelect:OnUpdate(dt)
         end
     end
 
-    if hovered ~= nil and hovered ~= self.hovered_spell then
-        TheFrontEnd:GetSound():PlaySound("epic_castselect_icons/epic_castselect_icons/idle")
+    if TUNING.EPIC_WORLD.CASTSELECT_MUSIC==1 and self.owner==ThePlayer then
+        if hovered then
+            if not TheFocalPoint.SoundEmitter:PlayingSound("epic_castselect_music") then
+                TheFocalPoint.SoundEmitter:PlaySound("epic_castselect_icons/epic_castselect_icons/idle","epic_castselect_music")
+            end
+        else
+            TheFocalPoint.SoundEmitter:KillSound("epic_castselect_music")
+        end
     end
 
     self.hovered_spell = hovered
@@ -255,7 +264,9 @@ end
 function EpicCastSelect:OnMouseButton(button, down, x, y)
     if button == MOUSEBUTTON_LEFT and not down then
         if self.casts[self.hovered_spell] and not self:IsCoolingDown(self.hovered_spell) then
-            TheFrontEnd:GetSound():PlaySound("epic_castselect_icons/epic_castselect_icons/click")
+            if TUNING.EPIC_WORLD.CASTSELECT_MUSIC==1 and self.owner==ThePlayer then
+                TheFocalPoint.SoundEmitter:PlaySound("epic_castselect_icons/epic_castselect_icons/click")
+            end
             SendModRPCToServer(MOD_RPC["WEREEPIC"][self.hovered_spell])
         end
         return true

@@ -27,3 +27,5 @@ PrefabFiles = {
 }
 
 AddReplicableComponent("wereepic")
+
+AddMinimapAtlas("images/map_icons/epic_chaosseed.xml")

@@ -9,7 +9,8 @@ local assets =
 
 local assets_icon =
 {
-    Asset("MINIMAP_IMAGE", "moonrockseed"),
+    Asset("IMAGE", "images/map_icons/epic_chaosseed.tex"),
+    Asset("ATLAS", "images/map_icons/epic_chaosseed.xml"),
 }
 
 local prefabs =
@@ -21,38 +22,6 @@ local prefabs_icon =
 {
     "globalmapicon",
 }
-
-local UPGRADED_LIGHT_RADIUS = 2.5
-
-local function updatelight(inst)
-    inst._light = inst._light < inst._targetlight and math.min(inst._targetlight, inst._light + .04) or math.max(inst._targetlight, inst._light - .02)
-    inst.AnimState:SetLightOverride(inst._light)
-	inst.Light:SetRadius(UPGRADED_LIGHT_RADIUS * inst._light / inst._targetlight)
-    if inst._light == inst._targetlight then
-        inst._task:Cancel()
-        inst._task = nil
-    end
-end
-
-local function fadelight(inst, target, instant)
-    inst._targetlight = target
-    if inst._light ~= target then
-        if instant then
-            if inst._task ~= nil then
-                inst._task:Cancel()
-                inst._task = nil
-            end
-            inst._light = target
-            inst.AnimState:SetLightOverride(target)
-			inst.Light:SetRadius(UPGRADED_LIGHT_RADIUS)
-        elseif inst._task == nil then
-            inst._task = inst:DoPeriodicTask(FRAMES, updatelight)
-        end
-    elseif inst._task ~= nil then
-        inst._task:Cancel()
-        inst._task = nil
-    end
-end
 
 local function cancelblink(inst)
     if inst._blinktask ~= nil then
@@ -202,22 +171,20 @@ local function OnRemoveEntity(inst)
     end
 end
 
-local function ondropped(inst)
-	inst.Light:Enable(false)
-end
-
-local function DoUpgrade(inst)
-	inst._upgraded = true
-    inst.components.prototyper.trees = TUNING.PROTOTYPER_TREES.MOONORB_UPGRADED
-end
-
-local function OnSave(inst, data)
-    data._upgraded = inst._upgraded
-end
-
-local function OnLoad(inst, data)
-    if data ~= nil and data._upgraded ~= nil then
-		inst:DoUpgrade()
+local function OnHaunt(inst,doer)
+    if doer:HasTag("playerghost") then
+        doer:PushEvent("respawnfromghost", { source = inst })
+        local health = doer.components.health or nil
+        local sanity = doer.components.sanity or nil
+        if health then
+            health:DoDelta(-49,false, nil, true)
+        end
+        if sanity then
+            sanity.current = 0
+        end
+        return true
+    else
+        return false
     end
 end
 
@@ -239,8 +206,9 @@ local function fn()
     inst:AddTag("irreplaceable")
     inst:AddTag("nonpotatable")
 	inst:AddTag("epicorigin_station")
+    inst:AddTag("outofreach")
 
-    inst._fx = net_event(inst.GUID, "moonrockseed._fx")
+    inst._fx = net_event(inst.GUID, "chaosseed._fx")
 
     inst.Light:SetFalloff(0.8)
     inst.Light:SetIntensity(.7)
@@ -249,7 +217,7 @@ local function fn()
     inst.Light:Enable(true)
 
     if not TheNet:IsDedicated() then
-        inst:ListenForEvent("moonrockseed._fx", OnFX)
+        inst:ListenForEvent("chaosseed._fx", OnFX)
     end
 
     inst.entity:SetPristine()
@@ -259,8 +227,6 @@ local function fn()
     end
 
     inst._tasks = {}
-    inst._light = 0
-    inst._targetlight = 0
     inst._owner = nil
     inst._container = nil
 
@@ -277,7 +243,8 @@ local function fn()
     inst.components.prototyper.onactivate = onactivate
     inst.components.prototyper.trees = TUNING.PROTOTYPER_TREES.EPICORIGIN_TWO
 
-    MakeHauntableLaunch(inst)
+    inst:AddComponent("hauntable")
+    inst.components.hauntable:SetOnHauntFn(OnHaunt)
 
     inst.icon = SpawnPrefab("epic_chaosseed_icon")
     inst.icon.entity:SetParent(inst.entity)
@@ -303,7 +270,7 @@ local function iconfn()
     inst.entity:AddMiniMapEntity()
     inst.entity:AddNetwork()
 
-    inst.MiniMapEntity:SetIcon("moonrockseed.png")
+    inst.MiniMapEntity:SetIcon("epic_chaosseed.tex")
     inst.MiniMapEntity:SetPriority(11)
     inst.MiniMapEntity:SetCanUseCache(false)
     inst.MiniMapEntity:SetDrawOverFogOfWar(true)

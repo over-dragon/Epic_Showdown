@@ -2,7 +2,7 @@ modimport("main/init")
 
 modimport("main/tuning")
 
-modimport("main/string_zh")
+modimport("main/language")
 
 modimport("main/patches")
 
