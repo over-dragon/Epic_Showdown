@@ -8,6 +8,8 @@ TUNING.EPIC_WORLD = {
     ATTACK_LOCOMTE_INTERRUPT = GetModConfigData(modid..'_attack_move') or 1,
 
     CASTSELECT_MUSIC = GetModConfigData(modid..'_caselect_music') or 1,
+
+    MAT_NUM = GetModConfigData(modid..'_mat') or 1
 }
 
 local BOSS = {

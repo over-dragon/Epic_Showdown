@@ -2,6 +2,7 @@ local Widget = require "widgets/widget"
 local UIAnim = require "widgets/uianim"
 local easing = require "easing"
 local EPIC = require("wereepic_skill")
+local Music = require("wereepic_boss")
 
 local CastSelect = {
     taunt = {
@@ -75,6 +76,13 @@ local Hide_Skill = {
     skill3 = true,
 }
 
+local fly_mode = {
+    malbatross = true,
+    beequeen = true,
+    dragonfly = true,
+    alterguardian_phase3 = true
+}
+
 local EpicCastSelect = Class(Widget, function(self, owner)
     Widget._ctor(self, "EpicCastSelect")
     self.owner = owner
@@ -108,6 +116,34 @@ local EpicCastSelect = Class(Widget, function(self, owner)
     self.current_select = nil
     self.start_time = nil
     self.mode = "none"
+
+    self.inst:ListenForEvent("epicdirty",function (owner,data)
+        if owner.replica.wereepic:IsEpic() then
+            self:Show()
+            local mode = owner.replica.wereepic:GetEpicMode()
+            if Music[mode] and TUNING.EPIC_WORLD.BGM==1 and owner == ThePlayer then
+                TheWorld:PushEvent("enabledynamicmusic", false)
+                if not TheFocalPoint.SoundEmitter:PlayingSound("epicmusic") then
+                    TheFocalPoint.SoundEmitter:PlaySound(
+                        Music[mode].music,"epicmusic")
+                end
+            end
+            if fly_mode[mode] then
+                if owner.components.locomotor then
+                    owner.components.locomotor:EnableGroundSpeedMultiplier(false)
+                end
+            end
+        else
+            self:Hide()
+            if owner == ThePlayer then
+                TheWorld:PushEvent("enabledynamicmusic", true)
+                TheFocalPoint.SoundEmitter:KillSound("epicmusic")
+            end
+            if owner.components.locomotor then
+                owner.components.locomotor:EnableGroundSpeedMultiplier(true)
+            end
+        end
+    end,owner)
 end)
 
 function EpicCastSelect:ShowSkill()
@@ -137,6 +173,8 @@ function EpicCastSelect:GetCooldownPercent(name)
     if self.owner.components.spellbookcooldowns then
         local pct = self.owner.components.spellbookcooldowns:GetSpellCooldownPercent(cd_name)
         return pct or 1
+    else
+        return 1
     end
 end
 

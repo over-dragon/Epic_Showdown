@@ -4671,7 +4671,7 @@ AddStategraphState("wilson",State{
 			inst.Physics:Stop()
 			inst.AnimState:PlayAnimation("spin_pre")
 			inst.components.burnable:Extinguish()
-			inst.numSpins = 0
+			inst.moose_numSpins = 0
             inst._moose_spintargets = {}
 
             local buffaction = inst:GetBufferedAction()
@@ -4683,6 +4683,7 @@ AddStategraphState("wilson",State{
                     local x, y, z = buffaction.target.Transform:GetWorldPosition()
                     inst:ForceFacePoint(x, y, z)
                     inst._facepoint_x, inst._facepoint_y, inst._facepoint_z = x, y, z
+                    inst.sg.statemem.target = buffaction.target
                 end
 			end
             inst:PerformBufferedAction()
@@ -4691,7 +4692,7 @@ AddStategraphState("wilson",State{
 		events =
 		{
 			EventHandler("animover", function(inst)
-                inst.sg:GoToState("moose_spin_loop")
+                inst.sg:GoToState("moose_spin_loop",inst.sg.statemem.target)
             end),
 		},
 
@@ -4711,7 +4712,7 @@ AddStategraphState("wilson",State{
 		name = "moose_spin_loop",
 		tags = { "busy", "spinning", "noelectrocute","epic","epic_skill","nopredict", "nomorph" },
 
-		onenter = function(inst)
+		onenter = function(inst,target)
 			inst.AnimState:PlayAnimation("spin_loop")
 			inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mossling/spin", "spinLoop")
 
@@ -4719,9 +4720,15 @@ AddStategraphState("wilson",State{
 			fx.entity:SetParent(inst.entity)
 			fx.Transform:SetPosition(0,0.1,0)
 			inst.components.burnable:Extinguish()
+
+            inst.sg.statemem.target = target
 		end,
 
 		onupdate = function(inst)
+            if inst.sg.statemem.target and inst.sg.statemem.target:IsValid() then
+                local x, y, z = inst.sg.statemem.target.Transform:GetWorldPosition()
+                inst:ForceFacePoint(x, y, z)
+            end
             Moose_DestroyStuff(inst)
             MooseDoArcAttack(inst,inst._moose_spintargets)
             inst.Physics:SetMotorVelOverride(12 , 0, 0)
@@ -4768,11 +4775,11 @@ AddStategraphState("wilson",State{
 		{
 			EventHandler("animover",
 			function(inst)
-				inst.numSpins = inst.numSpins + 1
-				if inst.numSpins>=2 then
+				inst.moose_numSpins = inst.moose_angery and inst.moose_numSpins + 1 or 2
+				if inst.moose_numSpins>=2 then
 					inst.sg:GoToState("moose_spin_pst")
 				else
-					inst.sg:GoToState("moose_spin_loop")
+					inst.sg:GoToState("moose_spin_loop",inst.sg.statemem.target)
 				end
 			end),
 		},
@@ -4799,7 +4806,7 @@ AddStategraphState("wilson",State{
 		onenter = function(inst)
 			inst.AnimState:PlayAnimation("spin_pst_loop", true)
 			inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mossling/dizzy", "dizzy")
-			inst.sg:SetTimeout(math.random() + 4.5)
+			inst.sg:SetTimeout(math.random() + (inst.moose_angery and 4.5 or 2))
 		end,
 
 		onexit = function(inst)

@@ -1,5 +1,3 @@
-local EPIC = require("wereepic_boss")
-
 local EPICVISION_COLOURCUBES = {
     day       = "images/colour_cubes/identity_colourcube.tex",
     dusk      = "images/colour_cubes/identity_colourcube.tex",
@@ -170,49 +168,16 @@ local WereEpic = Class(function(self, inst)
         if self._is_epic:value() then
             self:SetEpicVision()
             SetEpicActions(self,true)
-            if not TheWorld.ismastersim then
-                if EPIC[self._epic_mode:value()] and TUNING.EPIC_WORLD.BGM==1 and self.inst == ThePlayer then
-                    TheWorld:PushEvent("enabledynamicmusic", false)
-                    if not TheFocalPoint.SoundEmitter:PlayingSound("epicmusic") then
-                        TheFocalPoint.SoundEmitter:PlaySound(
-                            EPIC[self._epic_mode:value()].music,"epicmusic")
-                    end
-                end
-                if inst:HasTag("epic_gogglevision") then
-                    inst:PushEvent("gogglevision", { enabled = true })
-                end
-                if self.inst.HUD and self.inst.HUD.controls.epiccastselect then
-                    self.inst.HUD.controls.epiccastselect:Show()
-                end
-                if fly_mode[self._epic_mode:value()] then
-                    if inst.components.locomotor then
-                        inst.components.locomotor:EnableGroundSpeedMultiplier(false)
-                    end
-                end
-            end
         else
             self:ClearEpicVision()
             SetEpicActions(self,false)
-            if not TheWorld.ismastersim then
-                if self.inst == ThePlayer then
-                    TheWorld:PushEvent("enabledynamicmusic", true)
-                    TheFocalPoint.SoundEmitter:KillSound("epicmusic")
-                end
-                inst:PushEvent("gogglevision", { enabled = false })
-                if self.inst.HUD and self.inst.HUD.controls.epiccastselect then
-                    self.inst.HUD.controls.epiccastselect:Hide()
-                end
-                if inst.components.locomotor then
-                    inst.components.locomotor:EnableGroundSpeedMultiplier(true)
-                end
-            end
         end
     end)
     inst:ListenForEvent("epicmodedirty", function(inst)
         if inst.components.wereepic then
             local mode = inst.components.wereepic:GetEpicMode()
             if mode~=self._epic_mode:value() then
-                self:SetEpicMode(mode)
+                self._epic_mode:set(mode)
             end
         end
     end)
@@ -232,12 +197,16 @@ end
 function WereEpic:SetEpicVision()
     if self.inst.components.playervision then
         self.inst.components.playervision:PushForcedNightVision(self.inst, 10, EPICVISION_COLOURCUBES, false)
+        if self.inst:HasTag("epic_gogglevision") then
+            self.inst.components.playervision:ForceGoggleVision(true)
+        end
     end
 end
 
 function WereEpic:ClearEpicVision()
     if self.inst.components.playervision then
         self.inst.components.playervision:PopForcedNightVision(self.inst)
+        self.inst.components.playervision:ForceGoggleVision(false)
     end
 end
 

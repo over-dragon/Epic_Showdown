@@ -371,6 +371,8 @@ local WEREEPIC_BOSS = {
             if inst.components.locomotor then
                 inst.components.locomotor:RemoveExternalSpeedMultiplier(inst,"moose_speed")
             end
+
+            inst.moose_angery = false
         end
     },
 

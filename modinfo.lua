@@ -1,7 +1,7 @@
 local modid = 'epic_showdown'
 local cur = (locale == 'zh' or locale == 'zhr') and 'zh' or 'en'
 
-version = '26.8.4'
+version = '26.08.07.1'
 author = 'over_dragon、Guto'
 
 forumthread = ''
@@ -63,6 +63,14 @@ local LANGS = {
                 {'关闭',0},
                 {'开启',1}
             }},
+            {modid..'_mat','主材料数量倍率','取整数',1,{
+                {'0',0},
+                {'0.5',0.5},
+                {'1',1},
+                {'2',2},
+                {'3',3},
+                {'4',4},
+            }},
             {'PVP模式下生效'},
             {modid..'_keepsake','初始道具','除了无，剩下两个选项会从16个BOSS里面随机抽取',1,{
                 {'无',0},
@@ -115,6 +123,14 @@ local LANGS = {
             {modid..'_attack_move','Allow Attack While Moving','',1,{
                 {'Disabled',0},
                 {'Enabled',1}
+            }},
+            {modid..'_mat','Main Material Quantity Multiplier','Values are rounded to integers.',1,{
+                {'0',0},
+                {'0.5',0.5},
+                {'1',1},
+                {'2',2},
+                {'3',3},
+                {'4',4},
             }},
             {'Effective in PVP Mode'},
             {modid..'_keepsake','Starting Item','Except for "None", the other two options will be randomly selected from the 16 BOSSes.',1,{
