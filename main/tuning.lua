@@ -9,8 +9,19 @@ TUNING.EPIC_WORLD = {
 
     CASTSELECT_MUSIC = GetModConfigData(modid..'_caselect_music') or 1,
 
-    MAT_NUM = GetModConfigData(modid..'_mat') or 1
+    MAT_NUM = GetModConfigData(modid..'_mat') or 1,
+
+    WALKSPEED_CHANGE = GetModConfigData(modid..'walkspeed_change') or 0
 }
+if TUNING.ANCIENT_HULK_HEALTH==nil then
+    TUNING.ANCIENT_HULK_HEALTH = 8000
+end
+if TUNING.ANCIENT_HULK_DAMAGE==nil then
+    TUNING.ANCIENT_HULK_DAMAGE = 200
+end
+if TUNING.ANCIENT_HULK_ATTACK_RANGE==nil then
+    TUNING.ANCIENT_HULK_ATTACK_RANGE = 5.5
+end
 
 local BOSS = {
     "antlion",

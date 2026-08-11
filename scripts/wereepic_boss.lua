@@ -669,6 +669,7 @@ local WEREEPIC_BOSS = {
         hurtsoundoverride = "daywalker/voice/hurt",
         deathsoundoverride = "daywalker/voice/hurt",
         music = "dontstarve/music/music_epicfight_daywalker",
+        walkspeed = 3,
 
         oncollide = nil,
 
@@ -742,6 +743,7 @@ local WEREEPIC_BOSS = {
         hurtsoundoverride = "daywalker/voice/hurt",
         deathsoundoverride = "daywalker/voice/hurt",
         music = "dontstarve/music/music_epicfight_junkyardhog",
+        walkspeed = 3,
 
         oncollide = nil,
 
@@ -1504,6 +1506,122 @@ local WEREEPIC_BOSS = {
 				inst.sg.mem.mutateddeerclops_circle:Remove()
 				inst.sg.mem.mutateddeerclops_circle = nil
 			end
+        end,
+    },
+
+    ancient_hulk = {
+        build = "ancient_hulk_build",
+        bank = "ancient_hulk",
+        scale = 1,
+        phyrad = 1.5,
+        dyshadow = {6,3.5},
+        freezable = nil,
+        burnable_damage = 0,
+        hurtsoundoverride = "mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/hit",
+        deathsoundoverride = "mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/laser",
+        music = "dontstarve/music/music_epicfight_stalker",
+        walkspeed = 3,
+
+        oncollide = bearger_oncollide,
+
+        gogglevision = true,
+        health = TUNING.ANCIENT_HULK_HEALTH*TUNING.EPIC_WORLD.HEALTH,
+        damage = TUNING.ANCIENT_HULK_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
+        range = TUNING.ANCIENT_HULK_ATTACK_RANGE,
+
+        master_postinit = function (inst)
+            inst.Transform:SetSixFaced()
+
+            inst.Light:SetIntensity(.6)
+            inst.Light:SetRadius(5)
+            inst.Light:SetFalloff(3)
+            inst.Light:SetColour(1, 0.3, 0.3)
+            inst.Light:Enable(true)
+
+            inst.AnimState:AddOverrideBuild("laser_explode_sm")
+            inst.AnimState:AddOverrideBuild("smoke_aoe")
+            inst.AnimState:AddOverrideBuild("laser_explosion")
+
+            inst:AddTag("epic_immune_sleep")
+            inst:AddTag("epic_immune_freeze")
+            inst:AddTag("epic_immune_electrocute")
+            inst:AddTag("fireimmune")
+            inst:AddTag("epic_map_teleport")
+            if inst.components.freezable then
+                local old_redirectfn = inst.components.freezable.redirectfn
+                inst.components.freezable:SetRedirectFn(function (inst, coldness, freezetime, nofreeze)
+                    if inst:HasTag("epic_immune_freeze") then
+                        return true
+                    else
+                        if old_redirectfn then
+                            return old_redirectfn(inst, coldness, freezetime, nofreeze)
+                        end
+                    end
+                end)
+            end
+
+            inst:AddComponent("groundpounder")
+            inst.components.groundpounder.destroyer = true
+            inst.components.groundpounder.damageRings = 2
+            inst.components.groundpounder.destructionRings = 3
+            inst.components.groundpounder.numRings = 3
+            if TUNING.EPIC_WORLD.STRUCTURE_PROTECTION==1 then
+                table.insert(inst.components.groundpounder.noTags,"structure")
+                table.insert(inst.components.groundpounder.noTags,"wall")
+            end
+
+            if inst.components.combat then
+                inst.components.combat:SetAreaDamage(TUNING.ANCIENT_HULK_ATTACK_RANGE, 0.8)
+            end
+
+            if inst.components.grogginess then
+                inst.components.grogginess:AddImmunitySource(inst)
+            end
+
+            local fx = SpawnPrefab("ancient_hulk_projectile_marker")
+            local follower = fx.entity:AddFollower()
+            follower:FollowSymbol(inst.GUID, "hand01", 0, 0, 0)
+            fx:Hide()
+            inst.ancient_hulk_shotspawn = fx
+
+            inst.bearger_recentlycharged = {}
+        end,
+
+        master_human = function (inst)
+            inst.Transform:SetFourFaced()
+
+            inst.Light:SetIntensity(.8)
+            inst.Light:SetRadius(.5)
+            inst.Light:SetFalloff(.65)
+            inst.Light:SetColour(255 / 255, 255 / 255, 236 / 255)
+            inst.Light:Enable(false)
+
+            inst.SoundEmitter:KillSound("gears")
+
+            inst.AnimState:ClearOverrideBuild("laser_explode_sm")
+            inst.AnimState:ClearOverrideBuild("smoke_aoe")
+            inst.AnimState:ClearOverrideBuild("laser_explosion")
+
+            inst:RemoveTag("epic_immune_sleep")
+            inst:RemoveTag("epic_immune_freeze")
+            inst:RemoveTag("epic_immune_electrocute")
+            inst:RemoveTag("fireimmune")
+            inst:RemoveTag("ancient_hulk_telport")
+            inst:RemoveTag("epic_map_teleport")
+
+            if inst.components.combat then
+                inst.components.combat:SetAreaDamage()
+            end
+
+            if inst.components.grogginess then
+                inst.components.grogginess:RemoveImmunitySource(inst)
+            end
+
+            if inst.ancient_hulk_shotspawn then
+                inst.ancient_hulk_shotspawn:Remove()
+                inst.ancient_hulk_shotspawn = nil
+            end
+
         end,
     },
 }

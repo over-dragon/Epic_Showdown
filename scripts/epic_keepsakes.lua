@@ -271,6 +271,23 @@ local epic_keepsakes = {
         en_rec2 = "Chaos-forged essence of ancient shadows. Cooldown: half a day.",
         en_desc2 = "The shadow-weaving never ceases.",
     },
+    {
+        name = "ancient_hulk",
+        mat = "thulecite",
+        num = 15,
+        zh_name1 = "远古兵器信物",
+        zh_rec1 = "远古兵器的残响，三次为限。",
+        zh_desc1 = "远古战场的回音经久不息。",
+        en_name1 = "Ancient Weapon Keepsake",
+        en_rec1 = "Echo of the ancient weaponry. Three uses only.",
+        en_desc1 = "Echoes of the ancient battlefield linger.",
+        zh_name2 = "远古兵器本源",
+        zh_rec2 = "混沌凝聚的远古兵装本源，半日冷却。",
+        zh_desc2 = "兵锋所指，皆成废墟。",
+        en_name2 = "Ancient Weapon Essence",
+        en_rec2 = "Chaos-forged essence of the ancient arsenal. Cooldown: half a day.",
+        en_desc2 = "Where the blade points, ruins follow.",
+    },
 }
 
 return epic_keepsakes

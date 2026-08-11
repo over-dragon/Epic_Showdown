@@ -376,11 +376,15 @@ EPIC_MAP_TELEPORT.fn = function (act)
     if act_pos == nil then return false end
     local x, y, z = act_pos:Get()
 
-    if mode=="antlion" then
+    if mode=="antlion" or mode=="ancient_hulk" then
         if TheWorld.Map:IsOceanAtPoint(x,y, z) then return false end
         if TheWorld.Map:GetPlatformAtPoint(x,y, z) ~= nil then return false end
 
-        act.doer.sg:GoToState("antlion_jumpin_enter", { dest = act_pos })
+        if mode=="ancient_hulk" then
+            act.doer.sg:GoToState("ancient_hulk_telportout", { dest = act_pos })
+        elseif mode=="antlion" then
+            act.doer.sg:GoToState("antlion_jumpin_enter", { dest = act_pos })
+        end
     elseif mode=="malbatross" then
         if not TheWorld.Map:IsVisualGroundAtPoint(x,y,z) then
             act.doer.sg:GoToState("malbatross_arrive", { dest = act_pos })

@@ -158,7 +158,7 @@ function EpicCastSelect:ShowSkill()
                 self.casts[k]:Hide()
             end
         end
-        if string.find(mode,"alterguardian") then
+        if string.find(mode,"alterguardian") or mode=="ancient_hulk" then
             self.casts["taunt"]:Hide()
         else
             self.casts["taunt"]:Show()

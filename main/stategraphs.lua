@@ -230,53 +230,6 @@ local function SetLightValueAndOverride(inst, val, override)
     end
 end
 
-local function MoonStartFX(inst)
-    if inst._fxfront == nil or inst._fxback == nil then
-        local x, y, z = inst.Transform:GetWorldPosition()
-
-        if inst._fxpulse ~= nil then
-            inst._fxpulse:Remove()
-        end
-        inst._fxpulse = SpawnPrefab("positronpulse")
-        inst._fxpulse.Transform:SetPosition(x, y, z)
-
-        if inst._fxfront ~= nil then
-            inst._fxfront:Remove()
-        end
-        inst._fxfront = SpawnPrefab("positronbeam_front")
-        inst._fxfront.Transform:SetPosition(x, y, z)
-
-        if inst._fxback ~= nil then
-            inst._fxback:Remove()
-        end
-        inst._fxback = SpawnPrefab("positronbeam_back")
-        inst._fxback.Transform:SetPosition(x, y, z)
-
-        if inst._startlighttask ~= nil then
-            inst._startlighttask:Cancel()
-        end
-    end
-    if inst._stoplighttask ~= nil then
-        inst._stoplighttask:Cancel()
-        inst._stoplighttask = nil
-    end
-end
-
-local function MoonOnRemoveEntity(inst)
-    if inst._fxpulse ~= nil then
-        inst._fxpulse:Remove()
-        inst._fxpulse = nil
-    end
-    if inst._fxfront ~= nil then
-        inst._fxfront:Remove()
-        inst._fxfront = nil
-    end
-    if inst._fxback ~= nil then
-        inst._fxback:Remove()
-        inst._fxback = nil
-    end
-end
-
 ---bearger
 local function SpawnSwipeFX(inst, offset, reverse)
     local mode = inst.replica.wereepic:GetEpicMode()
@@ -812,29 +765,6 @@ end
 local function DoScreechAlert(inst)
     inst.components.epicscare:Scare(5)
     inst.components.commander:AlertAllSoldiers()
-end
-
----dragonfly
-local function dragonfly_spawnlavae(inst)
-    if inst.dragonfly_child==nil then
-        inst.dragonfly_child = 0
-    end
-    if inst.dragonfly_child<5 then
-        inst.dragonfly_child = inst.dragonfly_child+1
-        local x,y,z = inst.Transform:GetWorldPosition()
-        local facingangle = inst.Transform:GetRotation() * DEGREES
-        x = x + 1.7 * math.cos(-facingangle)
-        y = y - .3
-        z = z + 1.7 * math.sin(-facingangle)
-        local lavae = SpawnPrefab("lavae")
-        lavae.Transform:SetPosition(x,y,z)
-
-        if lavae.components.entitytracker then
-            lavae.components.entitytracker:TrackEntity("mother", inst)
-        end
-
-        lavae.sg:GoToState("taunt")
-    end
 end
 
 ---daywalker
@@ -1897,144 +1827,153 @@ local function BlinkMed(inst) SetBlinkLevel(inst, .3) end
 local function BlinkLow(inst) SetBlinkLevel(inst, .2) end
 local function BlinkOff(inst) SetBlinkLevel(inst, 0) end
 
-local SNARE_OVERLAP_MIN = 1
-local SNARE_OVERLAP_MAX = 3
-local SNAREOVERLAP_TAGS = { "fossilspike", "groundspike" }
-local function NoSnareOverlap(x, z, r)
-    return #TheSim:FindEntities(x, 0, z, r or SNARE_OVERLAP_MIN, SNAREOVERLAP_TAGS) <= 0
+---ancient_hulk
+local hulk_NOTAGS = { "playerghost", "INLIMBO", "DECOR", "FX" }
+local hulk_DAMAGE_ONEOF_TAGS = { "_combat", "pickable", "NPC_workable", "CHOP_workable", "HAMMER_workable", "MINE_workable", "DIG_workable" }
+if not TheNet:GetPVPEnabled() then
+    table.insert(hulk_NOTAGS,"player")
 end
-local SHADOWLURE_TAGS = {"shadowlure"}
-local function IsNearShadowLure(target)
-    return GetClosestInstWithTag(SHADOWLURE_TAGS, target, TUNING.THURIBLE_AOE_RANGE) ~= nil
+if TUNING.EPIC_WORLD.STRUCTURE_PROTECTION==1 then
+    table.insert(hulk_NOTAGS,"structure")
+    table.insert(hulk_NOTAGS,"wall")
 end
---Hard limit target list size since casting does multiple passes it
-local SNARE_MAX_TARGETS = 20
-local SNARE_TAGS = { "_combat", "locomotor" }
-local SNARE_NO_TAGS = { "flying", "ghost", "playerghost", "tallbird", "fossil", "shadow", "shadowminion", "INLIMBO", "epic", "smallcreature" }
-local function FindSnareTargets(inst)
+local function setfires(inst,x, y, z, rad)
+    for i, v in ipairs(TheSim:FindEntities(x, 0, z, rad, nil,hulk_NOTAGS,hulk_DAMAGE_ONEOF_TAGS)) do
+        if v.components.burnable and v~=inst then
+            v.components.burnable:Ignite()
+        end
+    end
+end
+
+local function applydamagetoent(inst, ent, targets, rad, hit)
     local x, y, z = inst.Transform:GetWorldPosition()
-    local targets = {}
-    local priorityindex = 1
-    local priorityindex2 = 1
-    local ents = TheSim:FindEntities(x, y, z, TUNING.STALKER_SNARE_RANGE, SNARE_TAGS, SNARE_NO_TAGS)
-    for i, v in ipairs(ents) do
-        if not (v.components.health ~= nil and v.components.health:IsDead()) and inst.components.combat:CanTarget(v) then
-            if v:HasTag("player") then
-                if not IsNearShadowLure(v) then
-                    table.insert(targets, priorityindex, v)
-                    priorityindex = priorityindex + 1
-                    priorityindex2 = priorityindex2 + 1
-                end
-            elseif v.components.combat:TargetIs(inst) then
-                table.insert(targets, priorityindex2, v)
-                priorityindex2 = priorityindex2 + 1
-            else
-                table.insert(targets, v)
-            end
-            if #targets >= SNARE_MAX_TARGETS then
-                return targets
-            end
-        end
+    if hit then
+        targets = {}
     end
-    return #targets > 0 and targets or nil
-end
-
-local function SpawnSnare(inst, x, z, r, num, target)
-    local vars = { 1, 2, 3, 4, 5, 6, 7 }
-    local used = {}
-    local queued = {}
-    local count = 0
-    local dtheta = TWOPI / num
-    local delaytoggle = 0
-    local map = TheWorld.Map
-    for theta = math.random() * dtheta, TWOPI, dtheta do
-        local x1 = x + r * math.cos(theta)
-        local z1 = z + r * math.sin(theta)
-        if map:IsPassableAtPoint(x1, 0, z1) and not map:IsPointNearHole(Vector3(x1, 0, z1)) then
-            local spike = SpawnPrefab("fossilspike")
-            spike.Transform:SetPosition(x1, 0, z1)
-
-            local delay = delaytoggle == 0 and 0 or .2 + delaytoggle * math.random() * .2
-            delaytoggle = delaytoggle == 1 and -1 or 1
-
-            local duration = GetRandomWithVariance(TUNING.STALKER_SNARE_TIME, TUNING.STALKER_SNARE_TIME_VARIANCE)
-
-            local variation = table.remove(vars, math.random(#vars))
-            table.insert(used, variation)
-            if #used > 3 then
-                table.insert(queued, table.remove(used, 1))
-            end
-            if #vars <= 0 then
-                local swap = vars
-                vars = queued
-                queued = swap
-            end
-
-            spike:RestartSpike(delay, duration, variation)
-            count = count + 1
-        end
+    if not rad then
+        rad = 4
     end
-    if count <= 0 then
-        return false
-    else
-        -- NOTES(JBK): This is for controllers to escape out of the prison without teleporting across the entire arena.
-        local duration = TUNING.STALKER_SNARE_TIME + TUNING.STALKER_SNARE_TIME_VARIANCE + 1
-        local blinkfocus = SpawnPrefab("blinkfocus_marker")
-        blinkfocus.Transform:SetPosition(x, 0, z)
-        blinkfocus:MakeTemporary(duration)
-        blinkfocus:SetMaxRange(r + 4)
-
-        if target:IsValid() then
-            target:PushEvent("snared", { attacker = inst })
+    local v = ent
+    if not targets[v] and v:IsValid() and not v:IsInLimbo() and
+    not (v.components.health ~= nil and v.components.health:IsDead())
+    then
+        local vradius = 0
+        if v.Physics then
+            vradius = v.Physics:GetRadius()
         end
-    end
-    return true
-end
 
-local function SpawnSnares(inst, targets)
-
-    local count = 0
-    local nextpass = {}
-    for i, v in ipairs(targets) do
-        if v:IsValid() and
-            v:IsNear(inst, TUNING.STALKER_SNARE_MAX_RANGE) then
-            local x, y, z = v.Transform:GetWorldPosition()
-            local islarge = v:HasTag("largecreature")
-            local r = v:GetPhysicsRadius(0) + (islarge and 1.5 or .5)
-            local num = islarge and 12 or 6
-            if NoSnareOverlap(x, z, r + SNARE_OVERLAP_MAX) then
-                if SpawnSnare(inst, x, z, r, num, v) then
-                    count = count + 1
-                    if count >= TUNING.STALKER_MAX_SNARES then
-                        break
-                    end
-                end
-            else
-                table.insert(nextpass, { x = x, z = z, r = r, n = num, inst = v })
+        local range = rad + vradius
+        if hit or v:GetDistanceSqToPoint(Vector3(x, y, z)) < range * range then
+            local isworkable = false
+            if v.components.workable ~= nil then
+                local work_action = v.components.workable:GetWorkAction()
+                isworkable =
+                    (   work_action == nil and v:HasTag("NPC_workable") ) or
+                        (   v.components.workable:CanBeWorked() and
+                            (   work_action == ACTIONS.CHOP or
+                                work_action == ACTIONS.HAMMER or
+                                work_action == ACTIONS.MINE or
+                                (   work_action == ACTIONS.DIG and
+                                    v.components.spawner == nil and
+                                    v.components.childspawner == nil
+                                )
+                            )
+                        )
             end
-        end
-    end
-
-    count = 0
-    if #nextpass > 0 then
-        for range = SNARE_OVERLAP_MAX - 1, SNARE_OVERLAP_MIN, -1 do
-            local i = 1
-            while i <= #nextpass do
-                local v = nextpass[i]
-                if NoSnareOverlap(v.x, v.z, v.r + range) then
-                    if SpawnSnare(inst, v.x, v.z, v.r, v.n, v.inst) then
-                        count = count + 1
-                        if count >= TUNING.STALKER_MAX_SNARES or #nextpass <= 1 then
-                           break
+            if isworkable then
+                targets[v] = true
+                v:DoTaskInTime(
+                    0.6,
+                    function()
+                        if v.components.workable then
+                            v.components.workable:Destroy(inst)
+                            local vx, vy, vz = v.Transform:GetWorldPosition()
+                            v:DoTaskInTime(
+                                0.3,
+                                function()
+                                    setfires(inst,vx, vy, vz, 1)
+                                end
+                            )
                         end
                     end
-                    table.remove(nextpass, i)
-                else
-                    i = i + 1
+                )
+            elseif v.components.pickable ~= nil and v.components.pickable:CanBePicked() and not v:HasTag("intense") then
+                targets[v] = true
+                local num = v.components.pickable.numtoharvest or 1
+                local product = v.components.pickable.product
+                local x1, y1, z1 = v.Transform:GetWorldPosition()
+                v.components.pickable:Pick(TheWorld)
+                if product ~= nil and num > 0 then
+                    for i = 1, num do
+                        local loot = SpawnPrefab(product)
+                        loot.Transform:SetPosition(x1, 0, z1)
+                        targets[loot] = true
+                    end
                 end
+            elseif v:IsValid() and v.components.health and inst.components.combat:CanTarget(v) then
+                inst.components.combat:DoAttack(v)
+                if not v.components.health or not v.components.health:IsDead() then
+                    if v.components.freezable ~= nil then
+                        if v.components.freezable:IsFrozen() then
+                            v.components.freezable:Unfreeze()
+                        elseif v.components.freezable.coldness > 0 then
+                            v.components.freezable:AddColdness(-2)
+                        end
+                    end
+                    if v.components.temperature ~= nil then
+                        local maxtemp = math.min(v.components.temperature:GetMax(), 10)
+                        local curtemp = v.components.temperature:GetCurrent()
+                        if maxtemp > curtemp then
+                            v.components.temperature:DoDelta(math.min(10, maxtemp - curtemp))
+                        end
+                    end
+                end
+            end
+
+            if v:IsValid() then
+                SpawnPrefab("ancient_hulk_laserhit"):SetTarget(v)
             end
         end
     end
+    return targets
+end
+
+local function ancient_hulk_DoDamage(inst, rad, startang, endang, spawnburns)
+    local targets = {}
+    local x, y, z = inst.Transform:GetWorldPosition()
+    local angle = nil
+
+    if startang and endang then
+        startang = startang + 90
+        endang = endang + 90
+        angle = inst.Transform:GetRotation()
+    end
+
+    inst.components.combat.ignorehitrange = true
+
+    setfires(inst,x, y, z, rad)
+
+    for i, v in ipairs(TheSim:FindEntities(x, 0, z, rad, nil, hulk_NOTAGS,hulk_DAMAGE_ONEOF_TAGS)) do
+        local dodamage = true
+        if startang and endang then
+            local dir = inst:GetAngleToPoint(Vector3(v.Transform:GetWorldPosition()))
+            local dif = angle - dir
+            while dif > 450 do
+                dif = dif - 360
+            end
+            while dif < 90 do
+                dif = dif + 360
+            end
+            if dif < startang or dif > endang then
+                dodamage = false
+            end
+        end
+        if dodamage then
+            targets = applydamagetoent(inst, v, targets, rad)
+        end
+    end
+
+    inst.components.combat.ignorehitrange = false
 end
 
 AddStategraphState("wilson",State{
@@ -2107,6 +2046,8 @@ AddStategraphState("wilson",State{
 				    inst.AnimState:PushAnimation("atk1_pst", false)
                     inst.sg.statemem.mutatedbearger_combo = false
                 end
+            elseif mode=="ancient_hulk" then
+                inst.AnimState:PlayAnimation("atk_chomp")
             else
                 inst.AnimState:PlayAnimation("atk")
             end
@@ -2261,6 +2202,8 @@ AddStategraphState("wilson",State{
                     inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/cast_pre")
                 elseif inst.sg.statemem.epicmode=="alterguardian_phase2" and not inst.sg.statemem.ph2_summon then
                     inst.SoundEmitter:PlaySound("moonstorm/creatures/boss/alterguardian2/scream")
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/dig")
                 end
             end),
             FrameEvent(9, function(inst)
@@ -2311,6 +2254,14 @@ AddStategraphState("wilson",State{
                     if inst:HasTag("dragonfly_enraged") and target ~= nil and target.components.health ~= nil and not target.components.health:IsDead() and target:IsValid() then
                         target.components.health:DoFireDamage(5, inst, true)
                     end
+                    if not inst.sg.statemem.isattack then
+                        inst:PerformBufferedAction()
+                    else
+                        inst:ClearBufferedAction()
+                    end
+                    inst.sg:RemoveStateTag("abouttoattack")
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.components.combat:DoAttack(inst.sg.statemem.target)
                     if not inst.sg.statemem.isattack then
                         inst:PerformBufferedAction()
                     else
@@ -2375,6 +2326,8 @@ AddStategraphState("wilson",State{
                     end
                 elseif inst.sg.statemem.epicmode=="alterguardian_phase3" then
                     inst.SoundEmitter:PlaySound("moonstorm/creatures/boss/alterguardian3/atk_stab_LP","stab_loop")
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/drag")
                 end
             end),
             FrameEvent(23, function(inst)
@@ -2958,6 +2911,8 @@ AddStategraphState("wilson",State{
                     phase1_play_foley(inst)
                 elseif inst.sg.statemem.epicmode=="alterguardian_phase2" then
                     phase2_play_foley(inst)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/ribs/servo", {intensity=math.random()})
 				end
 			end),
             FrameEvent(5, function(inst)
@@ -2996,6 +2951,11 @@ AddStategraphState("wilson",State{
                     DoFootstepAOE(inst)
 				end
 			end),
+            FrameEvent(12, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/head/step", {intensity=math.random()})
+				end
+			end),
             FrameEvent(15, function(inst)
                 if inst.sg.statemem.epicmode=="stalker_atrium" then
                     inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/footstep")
@@ -3004,6 +2964,8 @@ AddStategraphState("wilson",State{
             FrameEvent(16, function(inst)
 				if inst.sg.statemem.epicmode=="alterguardian_phase1" then
 					phase1_play_step(inst)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/head/step", {intensity=math.random()})
 				end
 			end),
 			FrameEvent(17, function(inst)
@@ -3017,6 +2979,11 @@ AddStategraphState("wilson",State{
                     daywalker_DoFootstep(inst)
                 end
             end),
+            FrameEvent(20, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/arm/step", {intensity=math.random()})
+				end
+			end),
             FrameEvent(22, function(inst)
                 if inst:HasTag("daywalker_run") then
                     daywalker_DoFootstep(inst)
@@ -3127,6 +3094,9 @@ AddStategraphState("wilson",State{
             else
                 inst.AnimState:PlayAnimation("walk_pst")
             end
+            if mode=="ancient_hulk" then
+                inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/head/step", {intensity=math.random()})
+            end
 			inst.sg.statemem.epicmode = mode
         end,
 
@@ -3209,41 +3179,6 @@ AddStategraphState("wilson",State{
     })
 
 AddStategraphState("wilson",State{
-        name = "stalker_atrium_death_pre",
-        tags = { "busy","pausepredict", "nomorph" ,"epic","noattack","stalker_atrium_death_pre" },
-
-        onenter = function(inst,data)
-            inst.components.locomotor:StopMoving()
-            inst.AnimState:PlayAnimation("death3_pre")
-            inst:ClearBufferedAction()
-
-            if inst.components.playercontroller then
-                inst.components.playercontroller:RemotePausePrediction()
-            end
-
-            inst.sg.statemem.epicdeathdata = data
-        end,
-
-        timeline =
-        {
-            TimeEvent(FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/death_pop") end),
-            TimeEvent(3 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/death_pop") end),
-            TimeEvent(7 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/death_pop") end),
-            TimeEvent(10 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/death_pop") end),
-        },
-
-        events =
-        {
-            EventHandler("animover", function(inst)
-                if inst.AnimState:AnimDone() then
-                    inst.sg:GoToState("epic_death",inst.sg.statemem.epicdeathdata)
-                end
-            end),
-        },
-
-    })
-
-AddStategraphState("wilson",State{
         name = "epic_death",
         tags = { "busy", "pausepredict", "nomorph" ,"epic","noattack","epic_death"},
 
@@ -3277,6 +3212,8 @@ AddStategraphState("wilson",State{
                 inst.AnimState:SetBankAndPlayAnimation("alterguardian_spawn_death", "phase3_death")
             elseif mode=="stalker_atrium" then
                 inst.AnimState:PlayAnimation("death3")
+            elseif mode=="ancient_hulk" then
+                inst.AnimState:PlayAnimation("death_explode")
             else
                 inst.AnimState:PlayAnimation("death")
             end
@@ -3301,6 +3238,8 @@ AddStategraphState("wilson",State{
             FrameEvent(6, function(inst)
                 if inst.sg.statemem.epicmode=="stalker_atrium" then
                     inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/death3/whip")
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/laser", {intensity= .3})
                 end
             end),
             FrameEvent(7, function(inst)
@@ -3318,6 +3257,9 @@ AddStategraphState("wilson",State{
             FrameEvent(16, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase2" then
                     set_lightvalues(inst, 0.6)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:KillSound("gears")
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/death")
                 end
             end),
             FrameEvent(18, function(inst)
@@ -3328,16 +3270,22 @@ AddStategraphState("wilson",State{
             FrameEvent(21, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase3" then
                     set_lightvalues(inst, 0.75)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/death_taunt")
                 end
             end),
             FrameEvent(23, function(inst)
                 if inst.sg.statemem.epicmode=="daywalker" or inst.sg.statemem.epicmode=="daywalker2" then
                     inst.SoundEmitter:PlaySound("daywalker/voice/speak_short")
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/laser", {intensity= .4})
                 end
             end),
             FrameEvent(27, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase2" then
                     set_lightvalues(inst, 0.9)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/laser", {intensity= .6})
                 end
             end),
             FrameEvent(31, function(inst)
@@ -3348,6 +3296,13 @@ AddStategraphState("wilson",State{
             FrameEvent(33, function(inst)
                 if inst.sg.statemem.epicmode=="daywalker" or inst.sg.statemem.epicmode=="daywalker2" then
                     inst.SoundEmitter:PlaySound("dontstarve/movement/bodyfall_dirt")
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/laser", {intensity= .8})
+                end
+            end),
+            FrameEvent(36, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/laser", {intensity= 1})
                 end
             end),
             FrameEvent(39, function(inst)
@@ -3391,6 +3346,13 @@ AddStategraphState("wilson",State{
             FrameEvent(60, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase3" then
                     set_lightvalues(inst, 0.65)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/explode_small",nil,.5)
+                end
+            end),
+            FrameEvent(67, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/explode_small",nil,.6)
                 end
             end),
             FrameEvent(73, function(inst)
@@ -3401,6 +3363,24 @@ AddStategraphState("wilson",State{
             FrameEvent(76, function(inst)
                 if inst.sg.statemem.epicmode=="daywalker" or inst.sg.statemem.epicmode=="daywalker2" then
                     inst.SoundEmitter:PlaySound("daywalker/voice/speak_short")
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/explode_small",nil,.7)
+                end
+            end),
+            FrameEvent(79, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/explode_small",nil,.6)
+                end
+            end),
+            FrameEvent(81, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    ShakeAllCameras(CAMERASHAKE.FULL, 0.7, 0.02, 3, inst, 40)
+                    ancient_hulk_DoDamage(inst,6)
+                end
+            end),
+            FrameEvent(82, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/explode")
                 end
             end),
             FrameEvent(85, function(inst)
@@ -3526,7 +3506,7 @@ AddStategraphState("wilson",State{
                             end
                         end
                     else
-                        if inst.sg.statemem.epicmode~="stalker_atrium" then
+                        if inst.sg.statemem.epicmode~="stalker_atrium" and inst.sg.statemem.epicmode~="ancient_hulk" then
                             local corpse = SpawnPrefab("epic_"..inst.sg.statemem.epicmode.."_corpse")
                             local x,y,z = inst.Transform:GetWorldPosition()
                             corpse.Transform:SetPosition(x,y,z)
@@ -3546,196 +3526,6 @@ AddStategraphState("wilson",State{
                 inst.DynamicShadow:Enable(true)
             end
 		end,
-    })
-
-AddStategraphState("wilson",State{
-        name = "epic_gravestone_rebirth",
-        tags = { "nopredict", "pausepredict", "nomorph" },
-
-        onenter = function(inst)
-            if inst.components.playercontroller ~= nil then
-                inst.components.playercontroller:Enable(false)
-            end
-
-            inst.AnimState:PlayAnimation("grave_spawn")
-
-            inst.components.health:SetInvincible(true)
-            inst:ShowHUD(false)
-            inst:SetCameraDistance(12)
-
-            inst.SoundEmitter:PlaySound("meta5/wendy/revive_emerge")
-
-            if inst.components.playercontroller then
-                inst.components.playercontroller:RemotePausePrediction()
-            end
-        end,
-
-        timeline =
-        {
-
-        },
-
-        events =
-        {
-            EventHandler("animover", function(inst)
-                if inst.AnimState:AnimDone() then
-                    inst.sg:GoToState("idle")
-                end
-            end),
-        },
-
-        onexit = function(inst)
-            if inst.components.playercontroller ~= nil then
-                inst.components.playercontroller:Enable(true)
-            end
-
-            if inst._epic_corpse then
-                ErodeAway(inst._epic_corpse)
-                inst._epic_corpse = nil
-            end
-
-            inst.components.health:SetInvincible(false)
-            inst:ShowHUD(true)
-            inst:SetCameraDistance()
-        end,
-    })
-
-
-AddStategraphState("wilson",State{
-        name = "epic_castspell",
-        tags = { "doing", "busy" ,"epic_transform"},
-
-        onenter = function(inst)
-            if inst.components.playercontroller ~= nil then
-                inst.components.playercontroller:Enable(false)
-            end
-
-            inst.AnimState:PlayAnimation("cointoss_pre")
-            inst.AnimState:PushAnimation("cointoss", false)
-            inst.components.locomotor:Stop()
-
-            inst.sg.statemem.fxprefab    = "epic_castfx"
-            inst.sg.statemem.lightcolour = { 1, 1, 1 }
-
-            inst.SoundEmitter:KillSound("epiccastspellsound")
-            inst.SoundEmitter:PlaySound("meta4/casting/lunar", "epiccastspellsound")
-            inst:PerformBufferedAction()
-        end,
-
-        timeline =
-        {
-            TimeEvent(7 * FRAMES, function(inst)
-                local mode = inst.components.wereepic and inst.components.wereepic:GetEpicMode()
-                local prefab = inst.sg.statemem.fxprefab
-
-                inst.sg.statemem.spellfx = SpawnPrefab(prefab)
-                inst.sg.statemem.spellfx:symbol(mode)
-                inst.sg.statemem.spellfx.entity:SetParent(inst.entity)
-            end),
-            TimeEvent(15 * FRAMES, function(inst)
-                inst.sg.statemem.spelllight = SpawnPrefab("staff_castinglight")
-                inst.sg.statemem.spelllight.Transform:SetPosition(inst.Transform:GetWorldPosition())
-                inst.sg.statemem.spelllight:SetUp(inst.sg.statemem.lightcolour, 1.2, .33)
-            end),
-			TimeEvent(20 * FRAMES, function(inst)
-                MoonStartFX(inst)
-			end),
-            TimeEvent(65 * FRAMES, function(inst)
-                inst.components.wereepic:OnBecameEpic()
-                inst.sg:GoToState("becameepic")
-			end),
-        },
-
-        events =
-        {
-
-        },
-
-        onexit = function(inst)
-            if inst.components.playercontroller ~= nil then
-                inst.components.playercontroller:Enable(true)
-            end
-            if inst.sg.statemem.spellfx ~= nil and inst.sg.statemem.spellfx:IsValid() then
-                inst.sg.statemem.spellfx:Remove()
-            end
-            if inst.sg.statemem.spelllight ~= nil and inst.sg.statemem.spelllight:IsValid() then
-                inst.sg.statemem.spelllight:Remove()
-            end
-
-            inst.SoundEmitter:KillSound("epiccastspellsound")
-            MoonOnRemoveEntity(inst)
-        end,
-    })
-
-AddStategraphState("wilson",State{
-        name = "epic_castspell_onload",
-        tags = { "doing", "busy" ,"epic_transform","pausepredict"},
-
-        onenter = function(inst,data)
-            if inst.components.playercontroller ~= nil then
-                inst.components.playercontroller:Enable(false)
-            end
-
-            inst.AnimState:PlayAnimation("cointoss_pre")
-            inst.AnimState:PushAnimation("cointoss", false)
-            inst.components.locomotor:Stop()
-
-            inst.sg.statemem.fxprefab    = "epic_castfx"
-            inst.sg.statemem.lightcolour = { 1, 1, 1 }
-
-            inst.SoundEmitter:KillSound("epiccastspellsound")
-            inst.SoundEmitter:PlaySound("meta4/casting/lunar", "epiccastspellsound")
-            if data and inst.components.wereepic then
-                inst.components.wereepic:SetEpicMode(data.mode)
-            end
-            if inst.components.playercontroller then
-                inst.components.playercontroller:RemotePausePrediction()
-            end
-        end,
-
-        timeline =
-        {
-            TimeEvent(7 * FRAMES, function(inst)
-                local mode = inst.components.wereepic and inst.components.wereepic:GetEpicMode()
-                local prefab = inst.sg.statemem.fxprefab
-
-                inst.sg.statemem.spellfx = SpawnPrefab(prefab)
-                inst.sg.statemem.spellfx:symbol(mode)
-                inst.sg.statemem.spellfx.entity:SetParent(inst.entity)
-            end),
-            TimeEvent(15 * FRAMES, function(inst)
-                inst.sg.statemem.spelllight = SpawnPrefab("staff_castinglight")
-                inst.sg.statemem.spelllight.Transform:SetPosition(inst.Transform:GetWorldPosition())
-                inst.sg.statemem.spelllight:SetUp(inst.sg.statemem.lightcolour, 1.2, .33)
-            end),
-			TimeEvent(20 * FRAMES, function(inst)
-                MoonStartFX(inst)
-			end),
-            TimeEvent(65 * FRAMES, function(inst)
-                inst.components.wereepic:OnBecameEpic()
-                inst.sg:GoToState("becameepic")
-			end),
-        },
-
-        events =
-        {
-
-        },
-
-        onexit = function(inst)
-            if inst.components.playercontroller ~= nil then
-                inst.components.playercontroller:Enable(true)
-            end
-            if inst.sg.statemem.spellfx ~= nil and inst.sg.statemem.spellfx:IsValid() then
-                inst.sg.statemem.spellfx:Remove()
-            end
-            if inst.sg.statemem.spelllight ~= nil and inst.sg.statemem.spelllight:IsValid() then
-                inst.sg.statemem.spelllight:Remove()
-            end
-
-            inst.SoundEmitter:KillSound("epiccastspellsound")
-            MoonOnRemoveEntity(inst)
-        end,
     })
 
 AddStategraphState("wilson",State{
@@ -3804,6 +3594,11 @@ AddStategraphState("wilson",State{
                 inst.AnimState:OverrideSymbol("eye_crystal", "deerclops_mutated", "eye_crystal")
 		        inst.AnimState:OverrideSymbol("frozen_debris", "deerclops_mutated", "frozen_debris")
                 inst.SoundEmitter:PlaySound("rifts3/mutated_deerclops/mutate_pre_f0")
+            elseif mode=="ancient_hulk" then
+                inst.components.health:SetInvincible(true)
+                inst.sg:AddStateTag("noattack")
+                inst.AnimState:PlayAnimation("activate")
+                inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/gears_LP","gears")
             else
                 inst.AnimState:PlayAnimation("taunt")
             end
@@ -3821,6 +3616,13 @@ AddStategraphState("wilson",State{
             FrameEvent(0, function(inst)
                 if inst.sg.statemem.epicmode=="stalker_atrium" then
                     inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/enter")
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:SetParameter( "gears", "intensity", 0.2 )
+                end
+            end),
+            FrameEvent(1, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro")
                 end
             end),
             FrameEvent(2, function(inst)
@@ -3831,6 +3633,8 @@ AddStategraphState("wilson",State{
             FrameEvent(4, function(inst)
                 if inst.sg.statemem.epicmode=="daywalker" or inst.sg.statemem.epicmode=="daywalker2" then
                     inst.SoundEmitter:PlaySound("daywalker/voice/chainbreak_break_2")
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro",nil,.5)
                 end
             end),
 			FrameEvent(5, function(inst)
@@ -3847,6 +3651,8 @@ AddStategraphState("wilson",State{
             FrameEvent(6, function(inst)
                 if inst.sg.statemem.epicmode=="mutateddeerclops" then
                     inst.SoundEmitter:PlaySound("rifts3/mutated_deerclops/ice_grow_4f_leadin")
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/arm/active")
                 end
             end),
             FrameEvent(7, function(inst)
@@ -3872,9 +3678,16 @@ AddStategraphState("wilson",State{
                     DoScreechAlert(inst)
                 end
             end),
+            FrameEvent(10, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/arm/active")
+                end
+            end),
             FrameEvent(12, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase3" then
                     set_lightvalues(inst, 0.05)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/arm/active",nil,.5)
                 end
             end),
             FrameEvent(13, function(inst)
@@ -3921,20 +3734,35 @@ AddStategraphState("wilson",State{
                     BlinkOff(inst)
                 end
             end),
+            FrameEvent(20, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/arm/active")
+                end
+            end),
             FrameEvent(21, function(inst)
                 if inst.sg.statemem.epicmode=="moose" then
                     inst.SoundEmitter:PlaySound(EPIC[inst.sg.statemem.epicmode].sounds.flap)
+                end
+            end),
+            FrameEvent(24, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro")
                 end
             end),
             FrameEvent(26, function(inst)
                 if inst.sg.statemem.epicmode=="dragonfly" then
                     inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/buttstomp")
                     inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/buttstomp_voice")
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:SetParameter( "gears", "intensity", 0.3 )
                 end
             end),
             FrameEvent(28, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase3" then
                     set_lightvalues(inst, 0.15)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro",nil,.5)
+                    inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/ribs/servo", {intensity=math.random()})
                 end
             end),
             FrameEvent(29, function(inst)
@@ -3978,6 +3806,9 @@ AddStategraphState("wilson",State{
                     inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/buttstomp_voice")
                 elseif inst.sg.statemem.epicmode=="stalker_atrium" then
                     BlinkMed(inst)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro")
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/ribs/step")
                 end
             end),
             FrameEvent(38, function(inst)
@@ -3988,6 +3819,8 @@ AddStategraphState("wilson",State{
             FrameEvent(39, function(inst)
                 if inst.sg.statemem.epicmode=="stalker_atrium" then
                     BlinkOff(inst)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro",nil,.5)
                 end
             end),
             FrameEvent(40, function(inst)
@@ -3995,6 +3828,8 @@ AddStategraphState("wilson",State{
                     set_lightvalues(inst, 0.10)
                 elseif inst.sg.statemem.epicmode=="stalker_atrium" then
                     BlinkMed(inst)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/head/active")
                 end
             end),
             FrameEvent(41, function(inst)
@@ -4006,6 +3841,8 @@ AddStategraphState("wilson",State{
                 if inst.sg.statemem.epicmode=="stalker_atrium" then
                     BlinkMed(inst)
                     ShakeIfClose(inst)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro")
                 end
             end),
             FrameEvent(43, function(inst)
@@ -4018,6 +3855,8 @@ AddStategraphState("wilson",State{
                     inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/blink")
                 elseif inst.sg.statemem.epicmode=="stalker_atrium" then
                     BlinkOff(inst)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/head/active")
                 end
             end),
             FrameEvent(45, function(inst)
@@ -4028,6 +3867,9 @@ AddStategraphState("wilson",State{
             FrameEvent(46, function(inst)
                 if inst.sg.statemem.epicmode=="mutateddeerclops" then
                     inst.SoundEmitter:PlaySound("rifts3/mutated_deerclops/ice_grow_4f_leadin")
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/ribs/servo", {intensity=math.random()})
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/start")
                 end
             end),
             FrameEvent(47, function(inst)
@@ -4054,6 +3896,8 @@ AddStategraphState("wilson",State{
                     set_lightvalues(inst, 0.475)
                 elseif inst.sg.statemem.epicmode=="stalker_atrium" then
                     BlinkMed(inst)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:SetParameter( "gears", "intensity", 0.4 )
                 end
             end),
             FrameEvent(51, function(inst)
@@ -4080,6 +3924,8 @@ AddStategraphState("wilson",State{
                     set_lightvalues(inst, 0.575)
                 elseif inst.sg.statemem.epicmode=="stalker_atrium" then
                     BlinkMed(inst)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/leg/active")
                 end
             end),
             FrameEvent(55, function(inst)
@@ -4092,6 +3938,8 @@ AddStategraphState("wilson",State{
             FrameEvent(56, function(inst)
                 if inst.sg.statemem.epicmode=="stalker_atrium" then
                     BlinkOff(inst)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/leg/active")
                 end
             end),
             FrameEvent(57, function(inst)
@@ -4105,11 +3953,15 @@ AddStategraphState("wilson",State{
             FrameEvent(58, function(inst)
                 if inst.sg.statemem.epicmode=="stalker_atrium" then
                     BlinkOff(inst)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/leg/active")
                 end
             end),
             FrameEvent(60, function(inst)
                 if inst.sg.statemem.epicmode=="stalker_atrium" then
                     BlinkMed(inst)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/leg/active")
                 end
             end),
             FrameEvent(61, function(inst)
@@ -4132,11 +3984,15 @@ AddStategraphState("wilson",State{
                 elseif inst.sg.statemem.epicmode=="stalker_atrium" then
                     inst.sg.statemem.baselightoverride = 0
                     inst.sg.statemem.fadeout = .2
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/ribs/servo", {intensity=math.random()})
                 end
             end),
             FrameEvent(65, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase2" then
                     set_lightvalues(inst, 0.6)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro",nil,.5)
                 end
             end),
             FrameEvent(66, function(inst)
@@ -4171,6 +4027,8 @@ AddStategraphState("wilson",State{
             FrameEvent(75, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase2" then
                     set_lightvalues(inst, 0.625)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:SetParameter( "gears", "intensity", 1 )
                 end
             end),
             FrameEvent(79, function(inst)
@@ -4183,6 +4041,21 @@ AddStategraphState("wilson",State{
                     set_lightvalues(inst, 0.75)
                 end
             end),
+            FrameEvent(83, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro")
+                end
+            end),
+            FrameEvent(84, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/ribs/servo", {intensity=math.random()})
+                end
+            end),
+            FrameEvent(86, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro",nil,.5)
+                end
+            end),
             FrameEvent(88, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase2" then
                     set_lightvalues(inst, 0.85)
@@ -4193,19 +4066,36 @@ AddStategraphState("wilson",State{
                     set_lightvalues(inst, 0.6)
                 end
             end),
+            FrameEvent(100, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:SetParameter( "gears", "intensity", .7 )
+                end
+            end),
             FrameEvent(101, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase3" then
                     set_lightvalues(inst, 0.9)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/leg/step")
+                end
+            end),
+            FrameEvent(103, function(inst)
+                if inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro")
                 end
             end),
             FrameEvent(106, function(inst)
                 if inst.sg.statemem.epicmode=="mutatedwarg" then
                     inst.SoundEmitter:PlaySound("rifts3/mutated_varg/mutate")
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/taunt")
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro",nil,.25)
                 end
             end),
             FrameEvent(113, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase3" then
                     set_lightvalues(inst, 0.95)
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro",nil,.25)
                 end
             end),
             FrameEvent(125, function(inst)
@@ -4214,6 +4104,8 @@ AddStategraphState("wilson",State{
                 elseif inst.sg.statemem.epicmode=="mutatedbearger" then
                     inst.SoundEmitter:KillSound("mutated_loop")
                     inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/bearger/step_soft")
+                elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                    inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/ribs/servo", {intensity=math.random()})
                 end
             end),
             FrameEvent(150, function(inst)
@@ -4299,6 +4191,8 @@ AddStategraphState("wilson",State{
                     inst.sg.mem.mutateddeerclops_circle.Transform:SetPosition(x, 0, z)
                     inst.sg.mem.mutateddeerclops_circle:GrowFX()
                 end
+            elseif inst.sg.statemem.epicmode=="ancient_hulk" then
+                inst.components.health:SetInvincible(false)
             end
             inst.SoundEmitter:KillSound("mutated_loop")
         end
@@ -5614,236 +5508,6 @@ AddStategraphState("wilson",State{
                 inst.sg:GoToState("epic_idle")
             end),
         },
-    })
-
----dragonfly
-AddStategraphState("wilson",State{
-        name = "dragonfly_transform_fire",
-		tags = { "busy", "noelectrocute","epic","epic_skill","pausepredict","dragonfly_transform_fire" },
-
-        onenter = function(inst)
-            inst.components.locomotor:StopMoving()
-            inst.Physics:Stop()
-
-            inst.AnimState:PlayAnimation("fire_on")
-            if inst.components.playercontroller ~= nil then
-				inst.components.playercontroller:RemotePausePrediction()
-            end
-        end,
-
-        events =
-        {
-            EventHandler("animover", function(inst)
-                if inst.AnimState:AnimDone() then
-                    inst.sg:GoToState("epic_idle")
-                end
-            end),
-        },
-
-        timeline =
-        {
-            TimeEvent(2*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/blink") end),
-            TimeEvent(7*FRAMES, function(inst)
-                if inst.components.debuffable then
-                    inst.components.debuffable:AddDebuff("dragonfly_enraged","buff_dragonfly_enraged")
-                end
-                inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/firedup", "fireflying")
-            end),
-			FrameEvent(25, function(inst)
-				inst.sg:RemoveStateTag("noelectrocute")
-			end),
-        },
-    })
-
-AddStategraphState("wilson",State{
-        name = "dragonfly_transform_normal",
-		tags = { "busy", "noelectrocute","epic","epic_skill","pausepredict","dragonfly_transform_normal" },
-
-        onenter = function(inst)
-            inst.components.locomotor:StopMoving()
-            inst.Physics:Stop()
-            inst.AnimState:PlayAnimation("fire_off")
-            if inst.components.playercontroller ~= nil then
-				inst.components.playercontroller:RemotePausePrediction()
-            end
-        end,
-
-        events =
-        {
-            EventHandler("animover", function(inst)
-                if inst.AnimState:AnimDone() then
-                    inst.sg:GoToState("epic_idle")
-                end
-            end),
-        },
-
-        timeline =
-        {
-            TimeEvent(2*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/blink") end),
-            TimeEvent(17*FRAMES, function(inst)
-                inst.AnimState:SetBuild(inst.dragonfly_yule and "dragonfly_yule_build" or "dragonfly_build")
-                inst:RemoveTag("dragonfly_enraged")
-
-                if inst.components.locomotor then
-                    inst.components.locomotor:RemoveExternalSpeedMultiplier(inst,"dragonfly_enraged_speed")
-                end
-                inst.components.combat:SetDefaultDamage(TUNING.DRAGONFLY_DAMAGE)
-                inst.components.combat:SetRange(TUNING.DRAGONFLY_HIT_RANGE)
-
-                inst.components.freezable:SetResistance(TUNING.DRAGONFLY_FREEZE_THRESHOLD)
-
-                inst.components.propagator:StopSpreading()
-                inst.Light:Enable(false)
-                inst.SoundEmitter:KillSound("fireflying")
-            end),
-			FrameEvent(25, function(inst)
-				inst.sg:RemoveStateTag("noelectrocute")
-			end),
-        },
-    })
-
-AddStategraphState("wilson",State{
-        name = "dragonfly_pound_pre",
-        tags = { "busy","epic","epic_skill","pausepredict","dragonfly_pound_pre" },
-
-        onenter = function(inst)
-            inst.components.locomotor:StopMoving()
-            inst.AnimState:PlayAnimation("taunt_pre")
-
-            if inst.components.playercontroller ~= nil then
-				inst.components.playercontroller:RemotePausePrediction()
-            end
-        end,
-
-        events =
-        {
-            EventHandler("animover", function(inst)
-                if inst.AnimState:AnimDone() then
-                    inst.sg:GoToState("dragonfly_pound")
-                end
-            end),
-        },
-
-        timeline =
-        {
-            TimeEvent(2*FRAMES, function(inst)
-                inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/blink")
-            end),
-        },
-    })
-
-AddStategraphState("wilson",State{
-        name = "dragonfly_pound",
-        tags = { "busy","epic","epic_skill","pausepredict","dragonfly_pound" },
-
-        onenter = function(inst)
-            inst.components.locomotor:StopMoving()
-            inst.AnimState:PlayAnimation("taunt")
-            local tauntfx = SpawnPrefab("tauntfire_fx")
-            tauntfx.Transform:SetPosition(inst.Transform:GetWorldPosition())
-            tauntfx.Transform:SetRotation(inst.Transform:GetRotation())
-            if inst.components.playercontroller ~= nil then
-				inst.components.playercontroller:RemotePausePrediction()
-            end
-        end,
-
-        events =
-        {
-            EventHandler("animover", function(inst)
-                if inst.AnimState:AnimDone() then
-                    inst.sg:GoToState("dragonfly_pound_pst")
-                end
-            end),
-        },
-
-        timeline =
-        {
-            TimeEvent(2*FRAMES, function(inst)
-                inst.components.groundpounder:GroundPound()
-                inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/buttstomp")
-                inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/buttstomp_voice")
-            end),
-            TimeEvent(9*FRAMES, function(inst)
-                inst.components.groundpounder:GroundPound()
-                inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/buttstomp")
-                inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/buttstomp_voice")
-            end),
-            TimeEvent(20*FRAMES, function(inst)
-                inst.components.groundpounder:GroundPound()
-                inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/buttstomp")
-                inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/buttstomp_voice")
-            end),
-        },
-    })
-
-AddStategraphState("wilson",State{
-        name = "dragonfly_pound_pst",
-        tags = { "busy","epic","epic_skill","pausepredict","dragonfly_pound_pst" },
-
-        onenter = function(inst)
-            inst.AnimState:PlayAnimation("taunt_pst")
-            if inst.components.playercontroller ~= nil then
-				inst.components.playercontroller:RemotePausePrediction()
-            end
-        end,
-
-        events =
-        {
-            EventHandler("animover", function(inst)
-                if inst.AnimState:AnimDone() then
-                    inst.sg:GoToState("epic_idle")
-                end
-            end),
-        },
-
-        timeline =
-        {
-            TimeEvent(1*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/blink") end),
-        },
-    })
-
-AddStategraphState("wilson",State{
-        name = "dragonfly_lavae",
-        tags = { "busy","epic","epic_skill" },
-
-        onenter = function(inst)
-            inst.Transform:SetTwoFaced()
-            inst.components.locomotor:StopMoving()
-            inst.AnimState:PlayAnimation("vomit")
-            inst.vomitfx = SpawnPrefab("vomitfire_fx")
-            inst.vomitfx.Transform:SetPosition(inst.Transform:GetWorldPosition())
-            inst.vomitfx.Transform:SetRotation(inst.Transform:GetRotation())
-            inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/vomitrumble", "vomitrumble")
-            inst:PerformBufferedAction()
-        end,
-
-        timeline =
-        {
-            TimeEvent(2*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/blink") end),
-            TimeEvent(55*FRAMES, function(inst)
-                inst.SoundEmitter:KillSound("vomitrumble")
-                inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/vomit")
-            end),
-            TimeEvent(59*FRAMES, dragonfly_spawnlavae),
-        },
-
-        events =
-        {
-            EventHandler("animover", function(inst)
-                if inst.AnimState:AnimDone() then
-                    inst.sg:GoToState("epic_idle")
-                end
-            end),
-        },
-
-        onexit = function(inst)
-            inst.Transform:SetSixFaced()
-            if inst.vomitfx then
-                inst.vomitfx:Remove()
-            end
-            inst.vomitfx = nil
-            inst.SoundEmitter:KillSound("vomitrumble")
-        end,
     })
 
 ---daywalker
@@ -7491,45 +7155,4 @@ AddStategraphState("wilson",State{
         onexit = function(inst)
             inst.Transform:SetSixFaced()
         end,
-    })
-
----stalker_atrium
-AddStategraphState("wilson",State{
-        name = "stalker_atrium_snare",
-        tags = { "busy", "stalker_atrium_snare","epic","epic_skill","pausepredict", },
-
-        onenter = function(inst)
-            inst.components.locomotor:StopMoving()
-            inst.AnimState:PlayAnimation("attack1")
-
-            if inst.components.playercontroller ~= nil then
-				inst.components.playercontroller:RemotePausePrediction()
-            end
-        end,
-
-        timeline =
-        {
-            TimeEvent(0 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/attack1_pbaoe_pre") end),
-            TimeEvent(24 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/attack1_pbaoe") end),
-            TimeEvent(25.5 * FRAMES, function(inst)
-                ShakeAllCameras(CAMERASHAKE.VERTICAL, .5, .03, .7, inst, 30)
-                inst.components.combat:DoAreaAttack(inst, 3.5, nil, nil, nil, { "INLIMBO", "notarget", "invisible", "noattack", "playerghost", "shadow", "shadowchesspiece", "shadowcreature" })
-                local targets = FindSnareTargets(inst)
-                if targets then
-                    SpawnSnares(inst,targets)
-                end
-            end),
-            TimeEvent(39 * FRAMES, function(inst)
-                inst.sg:RemoveStateTag("busy")
-            end),
-        },
-
-        events =
-        {
-            EventHandler("animover", function(inst)
-                if inst.AnimState:AnimDone() then
-                    inst.sg:GoToState("epic_idle")
-                end
-            end),
-        },
     })

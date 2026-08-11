@@ -183,14 +183,16 @@ local WEREEPIC_SKILL = {
         },
 
         transform = function (inst)
-            if inst.moose_angery then
-                inst.moose_angery = false
-                inst.AnimState:SetBuild("mossling_build")
-            else
-                inst.moose_angery = true
-                inst.AnimState:SetBuild("mossling_angry_build")
+            if not inst.sg:HasStateTag("spinning") then
+                if inst.moose_angery then
+                    inst.moose_angery = false
+                    inst.AnimState:SetBuild("mossling_build")
+                else
+                    inst.moose_angery = true
+                    inst.AnimState:SetBuild("mossling_angry_build")
+                end
+                TransformCool(inst)
             end
-            TransformCool(inst)
         end,
 
         skill1 = function (inst)
@@ -356,11 +358,17 @@ local WEREEPIC_SKILL = {
                 inst:RemoveTag("daywalker_run")
                 if inst.components.locomotor then
                     inst.components.locomotor:RemoveExternalSpeedMultiplier(inst,"daywalker_run_speed")
+                    if TUNING.EPIC_WORLD.WALKSPEED_CHANGE==1 then
+                        inst.components.locomotor.runspeed = 3
+                    end
                 end
             else
                 inst:AddTag("daywalker_run")
                 if inst.components.locomotor then
                     inst.components.locomotor:SetExternalSpeedMultiplier(inst,"daywalker_run_speed",1.5)
+                    if TUNING.EPIC_WORLD.WALKSPEED_CHANGE==1 then
+                        inst.components.locomotor.runspeed = 6
+                    end
                 end
             end
             TransformCool(inst)
@@ -387,11 +395,17 @@ local WEREEPIC_SKILL = {
                 inst:RemoveTag("daywalker_run")
                 if inst.components.locomotor then
                     inst.components.locomotor:RemoveExternalSpeedMultiplier(inst,"daywalker_run_speed")
+                    if TUNING.EPIC_WORLD.WALKSPEED_CHANGE==1 then
+                        inst.components.locomotor.runspeed = 3
+                    end
                 end
             else
                 inst:AddTag("daywalker_run")
                 if inst.components.locomotor then
                     inst.components.locomotor:SetExternalSpeedMultiplier(inst,"daywalker_run_speed",1.5)
+                    if TUNING.EPIC_WORLD.WALKSPEED_CHANGE==1 then
+                        inst.components.locomotor.runspeed = 6
+                    end
                 end
             end
             TransformCool(inst)
@@ -656,6 +670,55 @@ local WEREEPIC_SKILL = {
 
         stategraphs = {
             skill0 = "mutateddeerclops_icelance"
+        },
+    },
+
+    ancient_hulk = {
+        skill = function (act)
+            return true
+        end,
+
+        sounds = {
+
+        },
+
+        transform = function (inst)
+            if not inst:HasTag("ancient_hulk_telport") then
+                inst:AddTag("ancient_hulk_telport")
+            end
+            TransformCool(inst,6)
+        end,
+
+        skill1 = function (inst)
+            if not inst.sg:HasAnyStateTag("busy","hulk_bomb") then
+                inst.sg:GoToState("ancient_hulk_bomb_pre")
+                SkillCool(inst,1,5)
+            end
+        end,
+
+        skill2 = function (inst)
+            if not inst.sg:HasAnyStateTag("busy","ancient_hulk_spin") then
+                inst.sg:GoToState("ancient_hulk_spin")
+                SkillCool(inst,2,10)
+            end
+        end,
+
+        skill3 = function (inst)
+            if not inst.sg:HasAnyStateTag("busy","ancient_hulk_barrier") then
+                inst.sg:GoToState("ancient_hulk_barrier")
+                SkillCool(inst,3,10)
+            end
+        end,
+
+        stategraphs = {
+            skill0 = function(inst)
+                if inst:HasTag("ancient_hulk_telport") then
+                    return "ancient_hulk_telportout_pre"
+                else
+                    return "ancient_hulk_lob"
+                end
+            end,
+            map_teleport = "ancient_hulk_telportout_pre",
         },
     },
 }

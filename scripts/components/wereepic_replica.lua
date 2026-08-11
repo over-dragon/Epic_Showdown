@@ -55,8 +55,8 @@ local function RightClickPicker(inst, target, pos)
     elseif inst.checkingmapactions and inst.checkingmapactions_pos and inst:HasTag("epic_map_teleport") then
         local x, y, z = inst.checkingmapactions_pos:Get()
         local mode = inst.replica.wereepic:GetEpicMode()
-        if mode=="antlion" then
-            if TheWorld.Map:IsOceanAtPoint(x, y, z) or TheWorld.Map:GetPlatformAtPoint(x, y, z) ~= nil then
+        if mode=="antlion" or mode=="ancient_hulk" then
+            if TheWorld.Map:IsOceanAtPoint(x, y, z) or TheWorld.Map:GetPlatformAtPoint(x, y, z) ~= nil or (mode=="ancient_hulk" and not inst:HasTag("ancient_hulk_telport")) then
                 return nil
             else
                 return inst.components.playeractionpicker:SortActionList({ ACTIONS.EPIC_MAP_TELEPORT },target or pos, nil)

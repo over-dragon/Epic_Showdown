@@ -230,6 +230,14 @@ local function fn()
     inst._owner = nil
     inst._container = nil
 
+    inst._oncontainerownerchanged = function(container)
+        tostore(inst, container)
+    end
+
+    inst._oncontainerremoved = function()
+        unstore(inst)
+    end
+
     inst:AddComponent("inspectable")
 
     inst:AddComponent("inventoryitem")

@@ -1,7 +1,7 @@
 local modid = 'epic_showdown'
 local cur = (locale == 'zh' or locale == 'zhr') and 'zh' or 'en'
 
-version = '26.08.07.1'
+version = '26.08.11'
 author = 'over_dragon、Guto'
 
 forumthread = ''
@@ -71,6 +71,10 @@ local LANGS = {
                 {'3',3},
                 {'4',4},
             }},
+            {modid..'walkspeed_change','行走速度修正','仅对部分boss生效',0,{
+                {'关闭',0},
+                {'开启',1}
+            }},
             {'PVP模式下生效'},
             {modid..'_keepsake','初始道具','除了无，剩下两个选项会从16个BOSS里面随机抽取',1,{
                 {'无',0},
@@ -131,6 +135,10 @@ local LANGS = {
                 {'2',2},
                 {'3',3},
                 {'4',4},
+            }},
+            {modid..'walkspeed_change','Walk Speed Modification','Only affects certain bosses.',0,{
+                {'Disabled',0},
+                {'Enabled',1}
             }},
             {'Effective in PVP Mode'},
             {modid..'_keepsake','Starting Item','Except for "None", the other two options will be randomly selected from the 16 BOSSes.',1,{

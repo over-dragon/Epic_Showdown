@@ -272,6 +272,9 @@ function WereEpic:InitEpic()
 
     if self.inst.components.locomotor then
         self.inst.components.locomotor:SetExternalSpeedMultiplier(self.inst,"epic_scale_speed",1/s)
+        if TUNING.EPIC_WORLD.WALKSPEED_CHANGE==1 and EPIC[self.mode].walkspeed then
+            self.inst.components.locomotor.runspeed = EPIC[self.mode].walkspeed
+        end
     end
 
     if self.inst.components.health then
@@ -429,6 +432,9 @@ function WereEpic:InitHuman()
 
     if self.inst.components.locomotor then
         self.inst.components.locomotor:RemoveExternalSpeedMultiplier(self.inst,"epic_scale_speed")
+        if TUNING.EPIC_WORLD.WALKSPEED_CHANGE==1 and EPIC[self.mode].walkspeed then
+            self.inst.components.locomotor.runspeed = 6
+        end
     end
 
     if self.inst.components.health then
