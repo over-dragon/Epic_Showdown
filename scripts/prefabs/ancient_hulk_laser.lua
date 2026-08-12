@@ -2,6 +2,7 @@ local assets = {
     Asset("ANIM", "anim/ancient_hulk_projectile.zip"),
     Asset("ANIM", "anim/ancient_hulk_bomb.zip"),
     Asset("ANIM", "anim/ancient_hulk_laser_ring_fx.zip"),
+    Asset("ANIM", "anim/laser_explosion.zip"),
 }
 
 local basalt_assets =
@@ -435,7 +436,7 @@ local function onnearmine(inst, ents)
                 DoDamage(inst, 3.5)
                 inst:Remove()
             end)
-            local explosion = SpawnPrefab("mnh_laser_explosion")
+            local explosion = SpawnPrefab("epic_laser_explosion")
             explosion.Transform:SetPosition(inst.Transform:GetWorldPosition())
             inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/smash_3")
         end)
@@ -596,10 +597,40 @@ local function basalt_fn(Sim)
 	return inst
 end
 
+local function explosionfn()
+    local inst = CreateEntity()
+
+    inst.entity:AddTransform()
+    inst.entity:AddAnimState()
+	inst.entity:AddNetwork()
+    inst.AnimState:SetBuild("laser_explosion")
+    inst.AnimState:SetBank("laser_explosion")
+    inst.AnimState:PlayAnimation("idle")
+
+    inst:AddTag("NOCLICK")
+    inst:AddTag("FX")
+    inst:AddTag("laser")
+
+    inst.Transform:SetScale(0.85,0.85,0.85)
+
+    inst.entity:SetPristine()
+
+    if not TheWorld.ismastersim then
+        return inst
+    end
+
+    inst.persists = false
+    inst:ListenForEvent("animover", function(inst) inst:Remove() end)
+    inst:ListenForEvent("entitysleep", inst.Remove)
+
+    return inst
+end
+
 return Prefab("ancient_hulk_laserhit", hitfn),
     Prefab("epic_ancient_hulk_orb",orbfn,assets,prefabs),
     Prefab("ancient_hulk_laser_ring", scorchfn, assets),
     Prefab("ancient_hulk_projectile_marker",markerfn),
-    Prefab("epic_ancient_hulk_mine", minefn, assets, {"ancient_hulk_laser_ring"}),
+    Prefab("epic_ancient_hulk_mine", minefn, assets, {"ancient_hulk_laser_ring","epic_laser_explosion"}),
     Prefab("ancient_hulk_ring_fx", ringfn, ringassets),
-    Prefab("epic_rock_basalt", basalt_fn, basalt_assets)
+    Prefab("epic_rock_basalt", basalt_fn, basalt_assets),
+    Prefab("epic_laser_explosion", explosionfn, assets)

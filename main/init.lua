@@ -6,7 +6,6 @@ Assets = {
     Asset("ANIM", "anim/ancient_hulk_build.zip"),
     Asset("ANIM", "anim/ancient_hulk.zip"),
     Asset("ANIM", "anim/laser_explode_sm.zip"),
-    Asset("ANIM", "anim/laser_explosion.zip"),
     Asset("ANIM", "anim/smoke_aoe.zip"),
     Asset("IMAGE","images/epickeepsake_filter.tex"),
 	Asset("ATLAS", "images/epickeepsake_filter.xml"),

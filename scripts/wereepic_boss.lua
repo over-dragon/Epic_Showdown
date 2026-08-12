@@ -1609,6 +1609,8 @@ local WEREEPIC_BOSS = {
             inst:RemoveTag("ancient_hulk_telport")
             inst:RemoveTag("epic_map_teleport")
 
+            inst:RemoveComponent("groundpounder")
+
             if inst.components.combat then
                 inst.components.combat:SetAreaDamage()
             end
