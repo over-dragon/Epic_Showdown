@@ -39,7 +39,8 @@ local BOSS = {
     "alterguardian_phase1",
     "alterguardian_phase2",
     "alterguardian_phase3",
-    "stalker_atrium"
+    "stalker_atrium",
+    "ancient_hulk",
 }
 if TheNet:GetPVPEnabled() then
     local pvp_game_mode = GetModConfigData(modid..'_keepsake')

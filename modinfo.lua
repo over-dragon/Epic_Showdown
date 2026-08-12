@@ -1,7 +1,7 @@
 local modid = 'epic_showdown'
 local cur = (locale == 'zh' or locale == 'zhr') and 'zh' or 'en'
 
-version = '26.08.12'
+version = '26.08.12.2'
 author = 'over_dragon、Guto'
 
 forumthread = ''
@@ -27,7 +27,7 @@ local op={{'A',97},{'B',98},{'C',99},{'D',100},{'E',101},{'F',102},{'G',103},
 local LANGS = {
     ['zh'] = {
         name = '史诗对决',
-        description = '史诗对决，BOSS之间的战斗，获取BOSS的力量，变身为BOSS，大杀四方，目前共有16个BOSS。',
+        description = '史诗对决，BOSS之间的战斗，获取BOSS的力量，变身为BOSS，大杀四方，目前共有17个BOSS。',
         config = {
             {'通用'},
             {modid..'_health','生命值倍率','以原版为基础，如果有其它模组修改了常量表那么也会相应改变',0.5,{
@@ -76,7 +76,7 @@ local LANGS = {
                 {'开启',1}
             }},
             {'PVP模式下生效'},
-            {modid..'_keepsake','初始道具','除了无，剩下两个选项会从16个BOSS里面随机抽取',1,{
+            {modid..'_keepsake','初始道具','除了无，剩下两个选项会从17个BOSS里面随机抽取',1,{
                 {'无',0},
                 {'信物',1},
                 {'本源',2},
@@ -92,7 +92,7 @@ local LANGS = {
     },
     ['en'] = {
         name = 'Epic Showdown',
-        description = 'Epic Showdown - Battle among BOSSes. Harness their power, transform into a BOSS, and dominate the battlefield. Currently supports 16 BOSSes.',
+        description = 'Epic Showdown - Battle among BOSSes. Harness their power, transform into a BOSS, and dominate the battlefield. Currently supports 17 BOSSes.',
         config = {
             {'General'},
             {modid..'_health','Health Multiplier','Based on vanilla values. If other mods modify the constant tables, this will change accordingly.',0.5,{
@@ -141,7 +141,7 @@ local LANGS = {
                 {'Enabled',1}
             }},
             {'Effective in PVP Mode'},
-            {modid..'_keepsake','Starting Item','Except for "None", the other two options will be randomly selected from the 16 BOSSes.',1,{
+            {modid..'_keepsake','Starting Item','Except for "None", the other two options will be randomly selected from the 17 BOSSes.',1,{
                 {'None',0},
                 {'Keepsake',1},
                 {'Essence',2},
