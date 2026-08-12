@@ -42,8 +42,7 @@ local function EpicTrample(inst,x,y,z)
                              work_action == ACTIONS.HAMMER or
                             work_action == ACTIONS.MINE or
                             (   work_action == ACTIONS.DIG and
-                                v.components.spawner == nil and
-                                v.components.childspawner == nil and ( TUNING.EPIC_WORLD.STRUCTURE_PROTECTION == 1 and v:HasTag("stump") or TUNING.EPIC_WORLD.STRUCTURE_PROTECTION ~= 1)
+                                ( TUNING.EPIC_WORLD.STRUCTURE_PROTECTION == 1 and v:HasTag("stump") or TUNING.EPIC_WORLD.STRUCTURE_PROTECTION ~= 1)
                             )
                         )
                     )
@@ -55,7 +54,7 @@ local function EpicTrample(inst,x,y,z)
 
                 if v:HasTag("stump") then
                     if v.components.workable then
-                        v.components.workable:WorkedBy_Internal(inst, 1)
+                        v.components.workable:WorkedBy_Internal(inst, 30)
                     else
                         v:Remove()
                     end
@@ -150,20 +149,17 @@ local function DoEpicWork(act, workaction)
         return false
     end
 
-    local x,y,z = target.Transform:GetWorldPosition()
-    EpicTrample(doer, x, y, z)
-
-    if target.components.workable.action == ACTIONS.MINE then
+    if workaction == ACTIONS.MINE then
         PlayMiningFX(doer,target)
-    end
-    if target.components.workable.action == ACTIONS.DIG then
+    elseif workaction == ACTIONS.DIG then
         doer.SoundEmitter:PlaySound("dontstarve/wilson/dig")
-    end
-    if target.components.workable.action == ACTIONS.HAMMER then
+    elseif workaction == ACTIONS.HAMMER then
        doer.SoundEmitter:PlaySound("dontstarve/wilson/hit")
     end
 
-    target.components.workable:WorkedBy_Internal(doer, 30)
+    local x,y,z = target.Transform:GetWorldPosition()
+    EpicTrample(doer, x, y, z)
+
     return true
 end
 
