@@ -160,6 +160,10 @@ local function DoEpicWork(act, workaction)
     local x,y,z = target.Transform:GetWorldPosition()
     EpicTrample(doer, x, y, z)
 
+    if target and target:IsValid() and target.components.workable and target.components.workable:CanBeWorked() then
+        target.components.workable:WorkedBy_Internal(doer, 30)
+    end
+
     return true
 end
 
