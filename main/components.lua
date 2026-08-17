@@ -137,3 +137,23 @@ AddComponentPostInit("cursable", function(self)
     --     end
     -- end
 end)
+
+AddComponentPostInit("playercontroller", function(self)
+    local old_GetGroundUseSpecialAction = self.GetGroundUseSpecialAction
+    function self:GetGroundUseSpecialAction(position, right)
+        --local islocal = position == nil
+        if self.inst:HasTag("epic") then
+            position = position or
+                (self.reticule ~= nil and self.reticule.targetpos) or
+                (self.terraformer ~= nil and self.terraformer:GetPosition()) or
+                self:GetPlacerPosition() or
+                self.inst:GetPosition()
+
+            return CanEntitySeePoint(self.inst, position:Get())
+                and self.inst.components.playeractionpicker:GetPointSpecialActions(position, nil, right)[1]
+                or nil
+        else
+            return old_GetGroundUseSpecialAction(self,position,right)
+        end
+    end
+end)

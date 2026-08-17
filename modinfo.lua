@@ -1,7 +1,7 @@
 local modid = 'epic_showdown'
 local cur = (locale == 'zh' or locale == 'zhr') and 'zh' or 'en'
 
-version = '26.08.13'
+version = '26.08.17.1'
 author = 'over_dragon、Guto'
 
 forumthread = ''
@@ -23,6 +23,16 @@ local op={{'A',97},{'B',98},{'C',99},{'D',100},{'E',101},{'F',102},{'G',103},
 {'P',112},{'Q',113},{'R',114},{'无/None',0},{'S',115},{'T',116},{'U',117},{'V',118},{'W',119},
 {'X',120},{'Y',121},{'Z',122},{'0',48},{'1',49},{'2',50},{'3',51},{'4',52},{'5',53},
 {'6',54},{'7',55},{'8',56},{'9',57}}
+
+local padop = {
+    {'无/None',0},
+    {'LT',46},           -- CONTROL_OPEN_CRAFTING
+    {'RT',45},           -- CONTROL_OPEN_INVENTORY
+    {'DPad Up',51},    -- CONTROL_INVENTORY_EXAMINE
+    {'DPad Down',54},  -- CONTROL_INVENTORY_DROP
+    {'DPad Left',53},  -- CONTROL_INVENTORY_USEONSCENE
+    {'DPad Right',52}, -- CONTROL_INVENTORY_USEONSELF
+}
 
 local LANGS = {
     ['zh'] = {
@@ -88,6 +98,8 @@ local LANGS = {
             {modid..'skill1_keydown','技能1','',0,op},
             {modid..'skill2_keydown','技能2','',0,op},
             {modid..'skill3_keydown','技能3','',0,op},
+            {'手柄施法键'},
+            {modid..'_pad_cast','手柄施法键','按住+右摇杆选择技能，松开施法；摇杆回中松开=取消',46,padop},
         }
     },
     ['en'] = {
@@ -153,6 +165,8 @@ local LANGS = {
             {modid..'skill1_keydown','Skill 1','',0,op},
             {modid..'skill2_keydown','Skill 2','',0,op},
             {modid..'skill3_keydown','Skill 3','',0,op},
+            {'Gamepad Cast Key'},
+            {modid..'_pad_cast','Gamepad Cast Key','Hold + right stick to select a skill, release to cast.',46,padop},
         }
     }
 }

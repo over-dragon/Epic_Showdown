@@ -132,12 +132,12 @@ AddStategraphState("wilson_client",State{
                     if diff < 90 then
                         inst.Transform:SetRotation(rot1)
                     end
-                    if mode=="daywalker" then
-                        inst.sg.statemem.speedmult = 1
-                        inst.sg.statemem.speed = 2
-                        inst.sg.statemem.decel = 0
-                        inst.Physics:SetMotorVelOverride(2, 0, 0)
-                    end
+                end
+                if mode=="daywalker" then
+                    inst.sg.statemem.speedmult = 1
+                    inst.sg.statemem.speed = 2
+                    inst.sg.statemem.decel = 0
+                    inst.Physics:SetMotorVelOverride(2, 0, 0)
                 end
             elseif mode=="deerclops" or mode=="daywalker2" or mode=="alterguardian_phase2" or mode=="mutatedwarg" or mode=="mutateddeerclops" then
                 if target ~= nil and target:IsValid() then

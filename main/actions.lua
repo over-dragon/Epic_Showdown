@@ -271,7 +271,7 @@ EPIC_SKILL.strfn = function (act)
     return "EPIC_SKILL"
 end
 EPIC_SKILL.invalid_hold_action = true
-EPIC_SKILL.distance = 50
+EPIC_SKILL.distance = math.huge
 EPIC_SKILL.fn = function (act)
     local doer = act.doer
     local mode = doer.replica.wereepic:GetEpicMode()

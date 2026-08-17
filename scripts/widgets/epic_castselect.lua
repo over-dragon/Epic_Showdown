@@ -7,6 +7,7 @@ local Music = require("wereepic_boss")
 local CastSelect = {
     taunt = {
         pos = { -400, 150 },
+        pos2 = { 190, 110 },
         animbank = "epic_castselect_icons",
         animbuild = "epic_castselect_icons",
         animdis = "taunt",
@@ -14,6 +15,7 @@ local CastSelect = {
     },
     transform = {
         pos = { -200, 150 },
+        pos2 = { 190, -110 },
         animbank = "epic_castselect_icons",
         animbuild = "epic_castselect_icons",
         animdis = "transform",
@@ -21,6 +23,7 @@ local CastSelect = {
     },
     onbecamehuman = {
         pos = { 0, 150 },
+        pos2 = { 0, -220 },
         animbank = "epic_castselect_icons",
         animbuild = "epic_castselect_icons",
         animdis = "onbecamehuman",
@@ -28,6 +31,7 @@ local CastSelect = {
     },
     skill1 = {
         pos = { 200, 150 },
+        pos2 = { -190, -110 },
         animbank = "epic_castselect_icons",
         animbuild = "epic_castselect_icons",
         animdis = "skill1",
@@ -35,6 +39,7 @@ local CastSelect = {
     },
     skill2 = {
         pos = { 400, 150 },
+        pos2 = { -190, 110 },
         animbank = "epic_castselect_icons",
         animbuild = "epic_castselect_icons",
         animdis = "skill2",
@@ -42,6 +47,7 @@ local CastSelect = {
     },
     skill3 = {
         pos = { 600, 150 },
+         pos2 = { 0, 220 },
         animbank = "epic_castselect_icons",
         animbuild = "epic_castselect_icons",
         animdis = "skill3",
@@ -67,6 +73,11 @@ local function OnUnSelect(mode,anim)
     else
         anim:GetAnimState():PlayAnimation("cooldown", true)
     end
+end
+
+local function AngDist(a, b)
+    local d = math.abs(a - b) % TWOPI
+    return math.min(d, TWOPI - d)
 end
 
 local Hide_Skill = {
@@ -117,9 +128,18 @@ local EpicCastSelect = Class(Widget, function(self, owner)
     self.start_time = nil
     self.mode = "none"
 
+    self.pad_index = nil
+    self.pad_selecting = false
+    self.pad_hovered = nil
+    self.visible_slots = {}
+
+    self.iscontroller = false
+
     self.inst:ListenForEvent("epicdirty",function (owner,data)
         if owner.replica.wereepic:IsEpic() then
-            self:Show()
+            if not TheInput:ControllerAttached() then
+                self:Show()
+            end
             local mode = owner.replica.wereepic:GetEpicMode()
             if Music[mode] and TUNING.EPIC_WORLD.BGM==1 and owner == ThePlayer then
                 TheWorld:PushEvent("enabledynamicmusic", false)
@@ -165,6 +185,16 @@ function EpicCastSelect:ShowSkill()
             self.casts["taunt"]:GetAnimState():PlayAnimation(mode.."_taunt",true)
         end
         self.casts["onbecamehuman"]:GetAnimState():PlayAnimation(mode.."_onbecamehuman",true)
+
+        self.visible_slots = {}
+        for name in pairs(CastSelect) do
+            if self.casts[name].shown then
+                table.insert(self.visible_slots, name)
+            end
+        end
+        table.sort(self.visible_slots, function(a, b)
+            return CastSelect[a].pos[1] < CastSelect[b].pos[1]
+        end)
     end
 end
 
@@ -206,6 +236,38 @@ function EpicCastSelect:UpdateCooldowns()
     end
 end
 
+function EpicCastSelect:GetPadHovered()
+    if #self.visible_slots == 0 then
+        return nil
+    end
+    local xdir = TheInput:GetAnalogControlValue(CONTROL_PRESET_RSTICK_RIGHT)
+               - TheInput:GetAnalogControlValue(CONTROL_PRESET_RSTICK_LEFT)
+    local ydir = TheInput:GetAnalogControlValue(CONTROL_PRESET_RSTICK_UP)
+               - TheInput:GetAnalogControlValue(CONTROL_PRESET_RSTICK_DOWN)
+
+    if math.min(1, xdir*xdir + ydir*ydir) < TUNING.CONTROLLER_DEADZONE_RADIUS^2 then
+        return self.pad_index and self.visible_slots[self.pad_index] or nil
+    end
+
+    local stick_angle = math.atan2(xdir, ydir)
+    local best_i, best_d = nil, math.huge
+    for i, name in ipairs(self.visible_slots) do
+        local p = CastSelect[name].pos2
+        local d = AngDist(stick_angle, math.atan2(p[1], p[2]))
+        if d < best_d then best_i, best_d = i, d end
+    end
+
+    if self.pad_index ~= nil and best_i ~= self.pad_index then
+        local p = CastSelect[self.visible_slots[self.pad_index]].pos2
+        local cur_d = AngDist(stick_angle, math.atan2(p[1], p[2]))
+        if best_d > cur_d - math.rad(8) then
+            best_i = self.pad_index
+        end
+    end
+    self.pad_index = best_i
+    return self.visible_slots[best_i]
+end
+
 function EpicCastSelect:CanSelect()
     return not self.updating
 end
@@ -223,6 +285,12 @@ function EpicCastSelect:Select(name)
 end
 
 function EpicCastSelect:OnShow()
+    self.iscontroller = TheInput:ControllerAttached()
+    if self.iscontroller then
+        self:SetVAnchor(ANCHOR_MIDDLE)
+    else
+        self:SetVAnchor(ANCHOR_BOTTOM)
+    end
     self:ShowSkill()
     self.start_time = GetTime()
     self.updating = true
@@ -240,6 +308,10 @@ function EpicCastSelect:OnHide()
         OnUnSelect("none",anim)
     end
     self.hovered_spell = nil
+
+    self.pad_selecting = false
+    self.pad_hovered = nil
+    self.pad_index = nil
 end
 
 local duration = 0.5
@@ -247,9 +319,11 @@ function EpicCastSelect:OnUpdate(dt)
     local elapsedTime = GetTime() - self.start_time
     if elapsedTime < duration then
         for name, anim in pairs(self.casts) do
-            local target_pos = CastSelect[name].pos
-            local x = easing.outQuad(elapsedTime, 0, target_pos[1], duration)
-            local y = easing.outQuad(elapsedTime, 150, target_pos[2]-150, duration)
+            local target_pos = self.iscontroller and CastSelect[name].pos2 or CastSelect[name].pos
+            local x0 = 0
+            local y0 = self.iscontroller and 0 or 150
+            local x = easing.outQuad(elapsedTime, x0, target_pos[1]-x0, duration)
+            local y = easing.outQuad(elapsedTime, y0, target_pos[2]-y0, duration)
             anim:GetAnimState():SetMultColour(1, 1, 1, elapsedTime / duration)
             anim:SetPosition(x, y)
         end
@@ -265,13 +339,17 @@ function EpicCastSelect:OnUpdate(dt)
     local mouse = TheInput:GetScreenPosition()
     local hovered = nil
 
-    for name, anim in pairs(self.casts) do
-        local animPos = anim:GetWorldPosition()
-        local halfSize = 51
-        if mouse.x >= animPos.x - halfSize and mouse.x <= animPos.x + halfSize and
-           mouse.y >= animPos.y - halfSize and mouse.y <= animPos.y + halfSize then
-            hovered = name
-            break
+    if self.pad_selecting then
+        hovered = self:GetPadHovered()
+    else
+        for name, anim in pairs(self.casts) do
+            local animPos = anim:GetWorldPosition()
+            local halfSize = 51
+            if mouse.x >= animPos.x - halfSize and mouse.x <= animPos.x + halfSize and
+            mouse.y >= animPos.y - halfSize and mouse.y <= animPos.y + halfSize then
+                hovered = name
+                break
+            end
         end
     end
 
@@ -295,6 +373,10 @@ function EpicCastSelect:OnUpdate(dt)
         else
             TheFocalPoint.SoundEmitter:KillSound("epic_castselect_music")
         end
+    end
+
+    if self.pad_selecting then
+        self.pad_hovered = hovered
     end
 
     self.hovered_spell = hovered

@@ -12,10 +12,10 @@ local EPIC_LMB_ACTIONS =
 }
 local EPIC_TARGET_EXCLUDE_TAGS = { "FX", "NOCLICK", "DECOR", "INLIMBO", "catchable", "sign" }
 
-local function GetEpicAction(inst, target)
+local function GetEpicAction(inst, target,left)
     for i, v in ipairs(EPIC_LMB_ACTIONS) do
         if target:HasTag(v.."_workable") then
-            return not target:HasTag("sign") and ACTIONS["EPIC_"..v] or nil
+            return not target:HasTag("sign") and (left and inst.components.playeractionpicker:SortActionList({ ACTIONS["EPIC_"..v] }, target, nil) or ACTIONS["EPIC_"..v]) or nil
         end
     end
 end
@@ -27,7 +27,7 @@ local function LeftClickPicker(inst, target)
                 and inst.components.playeractionpicker:SortActionList({ ACTIONS.ATTACK }, target, nil)
                 or nil
         end
-        local actions = GetEpicAction(inst, target)
+        local actions = GetEpicAction(inst, target,true)
         if actions then
             return actions
         end
@@ -103,6 +103,20 @@ local function EpicActionButton(inst, force_target)
     end
 end
 
+local function ReticuleTargetFn(inst)
+    local player = ThePlayer
+    local ground = TheWorld.Map
+    local pos = Vector3()
+
+    for r = 7, 0, -.25 do
+        pos.x, pos.y, pos.z = player.entity:LocalToWorldSpace(r, 0, 0)
+        if ground:IsPassableAtPoint(pos.x, 0, pos.z, true) and not ground:IsGroundTargetBlocked(pos) then
+            break
+        end
+    end
+    return pos
+end
+
 local function SetEpicActions(self,isepic)
     if isepic then
         if self.inst.components.playercontroller ~= nil then
@@ -117,6 +131,28 @@ local function SetEpicActions(self,isepic)
             self.inst.components.playeractionpicker.rightclickoverride = RightClickPicker
             self.inst.components.playeractionpicker.pointspecialactionsfn = PointSpecialActions
         end
+
+        if self.inst.components.reticule == nil then
+            self.inst:AddComponent("reticule")
+            self.noreticule = true
+        else
+            self.noreticule = nil
+            self.targetfn = self.inst.components.reticule.targetfn
+            self.ease = self.inst.components.reticule.ease
+            self.twinstickcheckscheme = self.inst.components.reticule.twinstickcheckscheme
+            self.twinstickmode = self.inst.components.reticule.twinstickmode
+            self.twinstickrange = self.inst.components.reticule.twinstickrange
+            self.ispassableatallpoints = self.inst.components.reticule.ispassableatallpoints
+        end
+        self.inst.components.reticule.targetfn = ReticuleTargetFn
+        self.inst.components.reticule.ease = true
+        self.inst.components.reticule.twinstickcheckscheme = true
+        self.inst.components.reticule.twinstickmode = 1
+        self.inst.components.reticule.twinstickrange = 15
+        self.inst.components.reticule.ispassableatallpoints = true
+        if self.inst.components.playercontroller ~= nil and self.inst == ThePlayer then
+            self.inst.components.playercontroller:RefreshReticule()
+        end
     else
         if self.inst.components.playercontroller ~= nil then
             self.inst.components.playercontroller.actionbuttonoverride = self.actionbuttonoverride
@@ -125,6 +161,21 @@ local function SetEpicActions(self,isepic)
             self.inst.components.playeractionpicker.leftclickoverride = self.leftclickoverride
             self.inst.components.playeractionpicker.rightclickoverride = self.rightclickoverride
             self.inst.components.playeractionpicker.pointspecialactionsfn = self.pointspecialactionsfn
+        end
+        if self.inst.components.reticule ~= nil then
+            if self.noreticule then
+                self.inst:RemoveComponent("reticule")
+            else
+                self.inst.components.reticule.targetfn = self.targetfn
+                self.inst.components.reticule.ease = self.ease
+                self.inst.components.reticule.twinstickcheckscheme = self.twinstickcheckscheme
+                self.inst.components.reticule.twinstickmode = self.twinstickmode
+                self.inst.components.reticule.twinstickrange = self.twinstickrange
+                self.inst.components.reticule.ispassableatallpoints = self.ispassableatallpoints
+            end
+            if self.inst.components.playercontroller ~= nil and self.inst == ThePlayer then
+                self.inst.components.playercontroller:RefreshReticule()
+            end
         end
     end
 end
