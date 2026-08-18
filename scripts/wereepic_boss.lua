@@ -595,6 +595,7 @@ local WEREEPIC_BOSS = {
             inst:AddTag("vigorbuff")
 
             inst.components.locomotor:EnableGroundSpeedMultiplier(false)
+            inst.components.propagator:StopSpreading()
 
             inst:AddComponent("grouptargeter")
             local groundpounder = inst:AddComponent("groundpounder")

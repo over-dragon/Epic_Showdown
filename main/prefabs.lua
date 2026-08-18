@@ -45,7 +45,7 @@ local function EpicHealth(inst)
         inst:DoTaskInTime(0,function()
             local mode = inst.components.wereepic and inst.components.wereepic:GetEpicMode()
             if inst.components.health then
-                local ratio=inst.components.health.currenthealth/inst.components.health.maxhealth
+                local ratio=math.min(1,inst.components.health.currenthealth/inst.components.health.maxhealth)
                 inst.components.health:SetMaxHealth(EPIC[mode].health)
                 inst.components.health:SetCurrentHealth(EPIC[mode].health*ratio)
                 inst.components.health:DoDelta(0.01,true)
@@ -56,6 +56,23 @@ end
 
     inst:ListenForEvent("onmermkingcreated_anywhere", function() EpicHealth(inst) end, TheWorld)
     inst:ListenForEvent("onmermkingdestroyed_anywhere", function() EpicHealth(inst) end, TheWorld)
+end)
+
+AddPrefabPostInit("wx78", function(inst)
+    if not TheWorld.ismastersim then
+		return inst
+	end
+    local old_OnSave = inst.OnSave
+    inst.OnSave = function (inst,data,...)
+        if old_OnSave then
+            old_OnSave(inst,data,...)
+        end
+        local wereepic = inst.components.wereepic or nil
+        local health = inst.components.health or nil
+        if wereepic and wereepic:IsEpic() and health and data then
+            data._wx78_health = health.currenthealth/health.maxhealth*wereepic.maxhealth
+        end
+    end
 end)
 
 AddPrefabPostInit("beeguard", function(inst)

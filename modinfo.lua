@@ -1,7 +1,7 @@
 local modid = 'epic_showdown'
 local cur = (locale == 'zh' or locale == 'zhr') and 'zh' or 'en'
 
-version = '26.08.17.1'
+version = '26.08.18.1'
 author = 'over_dragon、Guto'
 
 forumthread = ''

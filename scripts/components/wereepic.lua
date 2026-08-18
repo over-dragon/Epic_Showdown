@@ -445,7 +445,7 @@ function WereEpic:InitHuman()
                 self.maxhealth = TUNING.WURT_HEALTH
             end
         end
-        local ratio=self.inst.components.health.currenthealth/self.inst.components.health.maxhealth
+        local ratio=math.min(1,self.inst.components.health.currenthealth/self.inst.components.health.maxhealth)
         self.inst.components.health:SetMaxHealth(self.maxhealth)
 		self.inst.components.health:SetCurrentHealth(self.maxhealth*ratio)
 		self.inst.components.health:DoDelta(0.01,true)
@@ -547,9 +547,18 @@ function WereEpic:OnBecameHuman()
     for _, name in ipairs(skill_names) do
         self.inst.components.spellbookcooldowns:StopSpellCooldown("epic_"..name)
     end
-    if self.inst.components.upgrademoduleowner then
-        local level = self.inst.components.upgrademoduleowner:GetChargeLevel()
-        self.inst.components.upgrademoduleowner:SetChargeLevel(level)
+    local owner = self.inst.components.upgrademoduleowner or nil
+    if owner then
+        local level = owner:GetChargeLevel()
+        owner:SetChargeLevel(level)
+        for _, module in ipairs(owner:GetAllModules()) do
+            local um = module.components.upgrademodule
+            if um ~= nil and um.activated and
+                (module.prefab == "wx78module_light" or module.prefab == "wx78module_light2") then
+                um:TryDeactivate()
+                um:TryActivate(false)
+            end
+        end
     end
     if self.planar then
         if self.inst.components.planardamage then

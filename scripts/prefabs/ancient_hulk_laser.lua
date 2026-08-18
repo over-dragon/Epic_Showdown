@@ -194,11 +194,11 @@ local function OnRemoveHit(inst)
         if inst.target.components.colouradder == nil then
             if inst.target.components.freezable ~= nil then
                 inst.target.components.freezable:UpdateTint()
-            else
+            elseif inst.target.AnimState then
                 inst.target.AnimState:SetAddColour(0, 0, 0, 1)
             end
         end
-        if inst.target.components.bloomer == nil then
+        if inst.target.components.bloomer == nil and inst.target.AnimState then
             inst.target.AnimState:ClearBloomEffectHandle()
         end
     end
@@ -212,13 +212,13 @@ local function UpdateHit(inst, target)
             local c = math.min(1, inst.flash)
             if target.components.colouradder ~= nil then
                 target.components.colouradder:PushColour(inst, c, 0, 0, 0)
-            else
+            elseif target.AnimState then
                 target.AnimState:SetAddColour(c, 0, 0, 1)
             end
             if inst.flash < .3 and oldflash >= .3 then
                 if target.components.bloomer ~= nil then
                     target.components.bloomer:PopBloom(inst)
-                else
+                elseif target.AnimState then
                     target.AnimState:ClearBloomEffectHandle()
                 end
             end
@@ -238,7 +238,7 @@ local function SetTarget(inst, target)
 
         if target.components.bloomer ~= nil then
             target.components.bloomer:PushBloom(inst, "shaders/anim.ksh", -1)
-        else
+        elseif target.AnimState then
             target.AnimState:SetBloomEffectHandle("shaders/anim.ksh")
         end
         inst.flash = .8 + math.random() * .4
