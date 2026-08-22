@@ -1,7 +1,7 @@
 local modid = 'epic_showdown'
 local cur = (locale == 'zh' or locale == 'zhr') and 'zh' or 'en'
 
-version = '26.08.18.1'
+version = '26.08.22.1'
 author = 'over_dragon、Guto'
 
 forumthread = ''
@@ -85,6 +85,10 @@ local LANGS = {
                 {'关闭',0},
                 {'开启',1}
             }},
+            {modid..'_combat_target','仇恨索敌','开启后对于友好生物伤害目标从可以攻击的目标变更为对自身有仇恨或自己仇恨的目标',0,{
+                {'关闭',0},
+                {'开启',1},
+            }},
             {'PVP模式下生效'},
             {modid..'_keepsake','初始道具','除了无，剩下两个选项会从17个BOSS里面随机抽取',1,{
                 {'无',0},
@@ -98,6 +102,7 @@ local LANGS = {
             {modid..'skill1_keydown','技能1','',0,op},
             {modid..'skill2_keydown','技能2','',0,op},
             {modid..'skill3_keydown','技能3','',0,op},
+            {modid..'_castselect_hide_key','轮盘显隐','仅变身状态有用，控制施法轮盘的显示和隐藏',0,op},
             {'手柄施法键'},
             {modid..'_pad_cast','手柄施法键','按住+右摇杆选择技能，松开施法；摇杆回中松开=取消',46,padop},
         }
@@ -152,6 +157,10 @@ local LANGS = {
                 {'Disabled',0},
                 {'Enabled',1}
             }},
+            {modid..'_combat_target','Aggro Targeting','When enabled, damage targets for friendly creatures are changed from any attackable target to only those that have aggro on you or that you are hostile to.',0,{
+                {'Disabled',0},
+                {'Enabled',1},
+            }},
             {'Effective in PVP Mode'},
             {modid..'_keepsake','Starting Item','Except for "None", the other two options will be randomly selected from the 17 BOSSes.',1,{
                 {'None',0},
@@ -165,6 +174,7 @@ local LANGS = {
             {modid..'skill1_keydown','Skill 1','',0,op},
             {modid..'skill2_keydown','Skill 2','',0,op},
             {modid..'skill3_keydown','Skill 3','',0,op},
+            {modid..'_castselect_hide_key','Radial Menu Visibility','Only affects transformed state. Controls the visibility of the casting radial menu.',0,op},
             {'Gamepad Cast Key'},
             {modid..'_pad_cast','Gamepad Cast Key','Hold + right stick to select a skill, release to cast.',46,padop},
         }

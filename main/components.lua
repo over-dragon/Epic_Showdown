@@ -157,3 +157,14 @@ AddComponentPostInit("playercontroller", function(self)
         end
     end
 end)
+
+AddComponentPostInit("combat", function(self)
+    local old_CanTarget = self.CanTarget
+    function self:CanTarget(target)
+        if self.inst.isplayer and TUNING.EPIC_WORLD.COMBAT_TARGET~=0 and self.inst:HasTag("epic") and target and target:IsValid() and target:HasTag("companion") then
+            return (target.components.combat and target.components.combat.target==self.inst or self.target==target) and old_CanTarget(self,target)
+        else
+            return old_CanTarget(self,target)
+        end
+    end
+end)

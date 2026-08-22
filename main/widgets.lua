@@ -12,6 +12,7 @@ local skill1_keydown = GetModConfigData(modid..'skill1_keydown') or 0
 local skill2_keydown = GetModConfigData(modid..'skill2_keydown') or 0
 local skill3_keydown = GetModConfigData(modid..'skill3_keydown') or 0
 local pad_cast = GetModConfigData(modid..'_pad_cast') or 0
+local castselect_hide_keydown = GetModConfigData(modid..'_castselect_hide_key') or 0
 
 
 local function IsCoolingDown(owner,name)
@@ -103,6 +104,17 @@ AddClassPostConstruct("widgets/controls", function(self)
                             TheFocalPoint.SoundEmitter:PlaySound("epic_castselect_icons/epic_castselect_icons/click")
                         end
                         SendModRPCToServer(MOD_RPC["WEREEPIC"]["skill3"])
+                    end
+                end
+            end)
+        end
+        if castselect_hide_keydown~=0 then
+            self['epic_castselect_handle'].castselect_hide_keydown = TheInput:AddKeyDownHandler(castselect_hide_keydown, function()
+                if IsHUDScreen() and self.owner:HasTag("epic") then
+                    if self.epiccastselect:IsVisible() then
+                        self.epiccastselect:Hide()
+                    else
+                        self.epiccastselect:Show()
                     end
                 end
             end)

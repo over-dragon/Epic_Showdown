@@ -509,6 +509,11 @@ function WereEpic:InitHuman()
 
     if self.inst.components.inventory then
         self.inst.components.inventory:Open()
+        local beardsack = self.inst.components.inventory:GetEquippedItem(EQUIPSLOTS.BEARD)
+        if beardsack ~= nil and beardsack.components.container ~= nil
+            and not beardsack.components.container:IsOpenedBy(self.inst) then
+            beardsack.components.container:Open(self.inst)
+        end
     end
 
     if EPIC[self.mode].freezable_resistance and self.inst.components.freezable then

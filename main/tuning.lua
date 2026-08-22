@@ -11,7 +11,9 @@ TUNING.EPIC_WORLD = {
 
     MAT_NUM = GetModConfigData(modid..'_mat') or 1,
 
-    WALKSPEED_CHANGE = GetModConfigData(modid..'walkspeed_change') or 0
+    WALKSPEED_CHANGE = GetModConfigData(modid..'walkspeed_change') or 0,
+
+    COMBAT_TARGET = GetModConfigData(modid..'_combat_target') or 0
 }
 if TUNING.ANCIENT_HULK_HEALTH==nil then
     TUNING.ANCIENT_HULK_HEALTH = 8000
