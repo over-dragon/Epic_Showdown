@@ -13,7 +13,9 @@ TUNING.EPIC_WORLD = {
 
     WALKSPEED_CHANGE = GetModConfigData(modid..'walkspeed_change') or 0,
 
-    COMBAT_TARGET = GetModConfigData(modid..'_combat_target') or 0
+    COMBAT_TARGET = GetModConfigData(modid..'_combat_target') or 0,
+
+    RECIPE = GetModConfigData(modid..'_recipes') or 0
 }
 if TUNING.ANCIENT_HULK_HEALTH==nil then
     TUNING.ANCIENT_HULK_HEALTH = 8000
@@ -25,25 +27,13 @@ if TUNING.ANCIENT_HULK_ATTACK_RANGE==nil then
     TUNING.ANCIENT_HULK_ATTACK_RANGE = 5.5
 end
 
-local BOSS = {
-    "antlion",
-    "bearger",
-    "beequeen",
-    "daywalker",
-    "daywalker2",
-    "deerclops",
-    "dragonfly",
-    "malbatross",
-    "moose",
-    "mutatedbearger",
-    "mutateddeerclops",
-    "mutatedwarg",
-    "alterguardian_phase1",
-    "alterguardian_phase2",
-    "alterguardian_phase3",
-    "stalker_atrium",
-    "ancient_hulk",
-}
+local EPIC = require("epic_keepsakes")
+local BOSS = {}
+
+for _, v in ipairs(EPIC) do
+    table.insert(BOSS,v.name)
+end
+
 if TheNet:GetPVPEnabled() then
     local pvp_game_mode = GetModConfigData(modid..'_keepsake')
 
@@ -55,11 +45,4 @@ if TheNet:GetPVPEnabled() then
             table.insert(v,picked_boss..origin)
         end
     end
-end
-TUNING.GAMEMODE_STARTING_ITEMS.DEFAULT.REGENT = TUNING.GAMEMODE_STARTING_ITEMS.DEFAULT.REGENT or {}
-for i, v in ipairs(BOSS) do
-    table.insert(TUNING.GAMEMODE_STARTING_ITEMS.DEFAULT.REGENT,v.."_keepsake")
-    TUNING.STARTING_ITEM_IMAGE_OVERRIDE[v.."_keepsake"] = {	atlas = "images/inventoryimages/"..v.."_keepsake.xml",	image = v.."_keepsake.tex"}
-    table.insert(TUNING.GAMEMODE_STARTING_ITEMS.DEFAULT.REGENT,v.."_origin")
-    TUNING.STARTING_ITEM_IMAGE_OVERRIDE[v.."_origin"] = {	atlas = "images/inventoryimages/"..v.."_origin.xml",	image = v.."_origin.tex"}
 end

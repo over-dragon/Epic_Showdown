@@ -17,8 +17,6 @@ local function MakeEpicOrigin(epic_mode)
     local assets =
     {
         Asset("ANIM", "anim/epic_origin.zip"),
-        Asset("IMAGE","images/inventoryimages/"..epic_mode.."_origin.tex"),
-	    Asset("ATLAS", "images/inventoryimages/"..epic_mode.."_origin.xml"),
     }
 
     local function fn()
@@ -53,8 +51,6 @@ local function MakeEpicOrigin(epic_mode)
 
         inst:AddComponent("inspectable")
         inst:AddComponent("inventoryitem")
-        inst.components.inventoryitem.imagename = epic_mode.."_origin"
-        inst.components.inventoryitem.atlasname = "images/inventoryimages/"..epic_mode.."_origin.xml"
         inst.components.inventoryitem.nobounce = true
 
         inst:AddComponent("wereepic_useableitem")

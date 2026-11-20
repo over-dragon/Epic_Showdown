@@ -1,3 +1,4 @@
+local EPIC = require("wereepic_boss")
 -- AddComponentPostInit("mightiness", function(self)
 --     local old_UpdateSkinMode = self.UpdateSkinMode
 --     function self:UpdateSkinMode(skin_data, delay)
@@ -106,6 +107,22 @@ AddComponentPostInit("spellbookcooldowns", function(self)
 end)
 
 AddComponentPostInit("health", function(self)
+    local old_SetVal = self.SetVal
+    function self:SetVal(val, cause, afflicter)
+        if self.inst:HasTag("epic_nextmode") then
+            return
+        elseif val <= 0 and self.currenthealth > 0 and self.inst:HasTag("epic") and self.inst.isplayer then
+            local mode = self.inst.components.wereepic and self.inst.components.wereepic:GetEpicMode()
+            local boss = EPIC[mode]
+            if boss and boss.nextmode and boss.nextmode.condition(self.inst,afflicter) then
+                self.inst:AddTag("epic_nextmode")
+                self.inst.sg:HandleEvent("death", { cause = cause, afflicter = afflicter, corpsing = false, epic_nextmode = boss.nextmode.mode})
+                return
+            end
+        end
+        return old_SetVal(self, val, cause, afflicter)
+    end
+
     local old_OnSave = self.OnSave
     function self:OnSave()
         local data = old_OnSave(self)
@@ -155,6 +172,22 @@ AddComponentPostInit("playercontroller", function(self)
         else
             return old_GetGroundUseSpecialAction(self,position,right)
         end
+    end
+
+    local old_DoAttackButton = self.DoAttackButton
+    function self:DoAttackButton(retarget, isleftmouse)
+        if self.inst:HasTag("sharkboi_fin") then
+            return
+        end
+        return old_DoAttackButton(self, retarget, isleftmouse)
+    end
+
+    local old_DoControllerAttackButton = self.DoControllerAttackButton
+    function self:DoControllerAttackButton(target)
+        if self.inst:HasTag("sharkboi_fin") then
+            return
+        end
+        return old_DoControllerAttackButton(self, target)
     end
 end)
 

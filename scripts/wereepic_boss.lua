@@ -229,6 +229,111 @@ local function FindMinions(inst, proximity)
     return TheSim:FindEntities(x, y, z, MINION_RADIUS + inst:GetPhysicsRadius(0) + (proximity or .5), FINDMINIONS_MUST_TAGS, FINDMINIONS_CANT_TAGS)
 end
 
+---klaus
+local DEER_DIST = 3.5
+
+local function DeerOnAttack(inst,data)
+    if data.attacker == inst._owner then
+        inst.notarise_angery = true
+    end
+end
+
+local function OnAngery(inst,data)
+    if not inst.notarise_angery then
+        local keeper = inst._owner
+        if keeper and keeper:IsValid() then
+            local mode = keeper.components.wereepic:GetEpicMode()
+            if not keeper:HasTag("klaus_angery") and
+            not keeper.sg:HasAnyStateTag("transition_angery","epic_death","epic_transform") and (mode=="klaus" or mode=="klaus2")
+            then
+                keeper:AddTag("klaus_angery")
+                keeper.sg:GoToState("klaus_transition")
+            end
+        end
+    end
+end
+
+local function SpawnDeer(inst)
+    local pos = inst:GetPosition()
+    local rot = inst.Transform:GetRotation()
+    local theta = (rot - 90) * DEGREES
+    local offset =
+        FindWalkableOffset(pos, theta, DEER_DIST, 5, true, false) or
+        FindWalkableOffset(pos, theta, DEER_DIST * .5, 5, true, false) or
+        Vector3(0, 0, 0)
+
+    local deer = SpawnPrefab("deer_red")
+    deer.Transform:SetRotation(rot)
+    deer.Transform:SetPosition(pos.x + offset.x, 0, pos.z + offset.z)
+    deer:AddTag("NOBLOCK")
+    deer:AddTag("companion")
+    deer.components.spawnfader:FadeIn()
+    inst.components.commander:AddSoldier(deer)
+    deer:ListenForEvent("attacked",DeerOnAttack)
+    deer:ListenForEvent("death",OnAngery)
+    deer:ListenForEvent("onremove",OnAngery)
+    deer._owner = inst
+    deer.persists = false
+
+    theta = (rot + 90) * DEGREES
+    offset =
+        FindWalkableOffset(pos, theta, DEER_DIST, 5, true, false) or
+        FindWalkableOffset(pos, theta, DEER_DIST * .5, 5, true, false) or
+        Vector3(0, 0, 0)
+
+    deer = SpawnPrefab("deer_blue")
+    deer.Transform:SetRotation(rot)
+    deer.Transform:SetPosition(pos.x + offset.x, 0, pos.z + offset.z)
+    deer:AddTag("NOBLOCK")
+    deer:AddTag("companion")
+    deer.components.spawnfader:FadeIn()
+    inst.components.commander:AddSoldier(deer)
+    deer:ListenForEvent("attacked",DeerOnAttack)
+    deer:ListenForEvent("death",OnAngery)
+    deer:ListenForEvent("onremove",OnAngery)
+    deer._owner = inst
+    deer.persists = false
+
+    inst._klaus_has_deer = true
+end
+
+local function ClearRecentAttacker(inst, attacker)
+    inst.klaus_recentattackers[attacker] = nil
+end
+
+local function klaus_OnAttacked(inst, data)
+    if data.attacker ~= nil then
+        if inst.klaus_recentattackers[data.attacker] ~= nil then
+            inst.klaus_recentattackers[data.attacker]:Cancel()
+        end
+        inst.klaus_recentattackers[data.attacker] = inst:DoTaskInTime(30, ClearRecentAttacker, data.attacker)
+
+        inst.components.commander:ShareTargetToAllSoldiers(data.attacker)
+    end
+end
+
+local function klaus2_OnAttacked(inst, data)
+    if data.attacker ~= nil then
+        inst.components.commander:ShareTargetToAllSoldiers(data.attacker)
+    end
+end
+
+local function IsInLunacyArea(inst)
+    return TheWorld.Map:IsInLunacyArea(inst.Transform:GetWorldPosition())
+end
+
+local function IsShadowAligned(afflicter)
+    return afflicter and afflicter:IsValid() and (afflicter:HasTag("shadow_aligned") or afflicter:HasTag("shadow"))
+end
+
+local function IsInShadowArea(inst)
+    return TheWorld.Map:IsPointInCharlieBossArena(inst.Transform:GetWorldPosition()) or inst.components.areaaware and inst.components.areaaware:CurrentlyInTag("Atrium")
+end
+
+local function Alter_nextmode(inst,afflicter)
+    return IsInLunacyArea(inst) or IsInShadowArea(inst) or IsShadowAligned(afflicter)
+end
+
 local WEREEPIC_BOSS = {
     deerclops = {
         build = "deerclops_build",
@@ -249,6 +354,7 @@ local WEREEPIC_BOSS = {
         range = TUNING.MUTATED_DEERCLOPS_ATTACK_RANGE/2,
 
         master_postinit = function (inst)
+            -- inst:AddTag("epic_noskill0")
             -- inst:AddTag("epic_immune_electrocute")
             -- inst:AddTag("epic_immune_freeze")
             -- inst:AddTag("epic_immune_sleep")
@@ -286,6 +392,13 @@ local WEREEPIC_BOSS = {
             inst:RemoveEventCallback("newstate", YuleOnNewState)
             inst:RemoveEventCallback("onhitother", Deerclops_OnHitOther)
         end,
+
+        nextmode = {
+            mode = "mutateddeerclops",
+            condition = function (inst,afflicter)
+                return TheWorld.components.riftspawner and TheWorld.components.riftspawner:IsLunarPortalActive() or IsInLunacyArea(inst)
+            end,
+        },
     },
 
     bearger = {
@@ -336,7 +449,14 @@ local WEREEPIC_BOSS = {
             end
 
             inst:RemoveEventCallback("onhitother", bearger_OnHitOther)
-        end
+        end,
+
+        nextmode = {
+            mode = "mutatedbearger",
+            condition = function (inst,afflicter)
+                return TheWorld.components.riftspawner and TheWorld.components.riftspawner:IsLunarPortalActive() or IsInLunacyArea(inst)
+            end,
+        },
     },
 
     moose = {
@@ -356,6 +476,7 @@ local WEREEPIC_BOSS = {
         health = TUNING.MOOSE_HEALTH*TUNING.EPIC_WORLD.HEALTH,
         damage = TUNING.MOOSE_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
         range = TUNING.MOOSE_ATTACK_RANGE,
+        initanim = "taunt_pre",
 
         master_postinit = function (inst)
             inst:AddTag("moose")
@@ -572,6 +693,7 @@ local WEREEPIC_BOSS = {
         health = TUNING.DRAGONFLY_HEALTH*TUNING.EPIC_WORLD.HEALTH,
         damage = TUNING.DRAGONFLY_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
         range = TUNING.DRAGONFLY_HIT_RANGE,
+        initanim = "taunt_pre",
 
         master_postinit = function (inst)
             inst.Transform:SetSixFaced()
@@ -831,6 +953,7 @@ local WEREEPIC_BOSS = {
         health = TUNING.ALTERGUARDIAN_PHASE1_HEALTH*TUNING.EPIC_WORLD.HEALTH,
         damage = TUNING.ALTERGUARDIAN_PHASE1_ROLLDAMAGE*TUNING.EPIC_WORLD.DAMAGE,
         range = TUNING.ALTERGUARDIAN_PHASE1_AOERANGE,
+        initanim = "idle",
 
         master_postinit = function (inst)
             inst:AddTag("epic_immune_freeze")
@@ -878,7 +1001,14 @@ local WEREEPIC_BOSS = {
             end
 
             inst.SoundEmitter:KillSound("idle_LP")
-        end
+        end,
+
+        nextmode = {
+            mode = "alterguardian_phase2",
+            condition = function (inst,afflicter)
+                return TheWorld.state.isfullmoon or Alter_nextmode(inst,afflicter)
+            end,
+        },
     },
 
     alterguardian_phase2 = {
@@ -901,6 +1031,7 @@ local WEREEPIC_BOSS = {
         health = TUNING.ALTERGUARDIAN_PHASE2_STARTHEALTH*TUNING.EPIC_WORLD.HEALTH,
         damage = TUNING.ALTERGUARDIAN_PHASE2_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
         range = TUNING.ALTERGUARDIAN_PHASE2_CHOP_RANGE,
+        initanim = "idle",
 
         master_postinit = function (inst)
             inst.Transform:SetSixFaced()
@@ -964,7 +1095,14 @@ local WEREEPIC_BOSS = {
             end
 
             inst.SoundEmitter:KillSound("idle_LP")
-        end
+        end,
+
+        nextmode = {
+            mode = "alterguardian_phase3",
+            condition = function (inst,afflicter)
+                return TheWorld.state.isfullmoon or Alter_nextmode(inst,afflicter)
+            end,
+        },
     },
 
     alterguardian_phase3 = {
@@ -987,6 +1125,7 @@ local WEREEPIC_BOSS = {
         health = TUNING.ALTERGUARDIAN_PHASE3_STARTHEALTH*TUNING.EPIC_WORLD.HEALTH,
         damage = TUNING.ALTERGUARDIAN_PHASE3_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
         range = TUNING.ALTERGUARDIAN_PHASE3_STAB_HITRANGE,
+        initanim = "idle",
 
         master_postinit = function (inst)
             inst.Transform:SetSixFaced()
@@ -1082,7 +1221,14 @@ local WEREEPIC_BOSS = {
 
             local moonstorms = TheWorld.net.components.moonstorms
             local is_active = moonstorms ~= nil and next(moonstorms:GetMoonstormNodes()) ~= nil
-            if not is_active then
+            local alter_player = nil
+            for i, v in ipairs(AllPlayers) do
+                if v~=inst and v.replica.wereepic:IsEpic() and v.replica.wereepic:GetEpicMode()=="alterguardian_phase3" then
+                    alter_player = true
+                    break
+                end
+            end
+            if not (is_active or alter_player) then
                 TheWorld:PushEvent("ms_setmoonphase", {moonphase = "new", iswaxing = true})
                 TheWorld:PushEvent("ms_setmoonphasestyle", {style = "glassed_default"})
                 TheWorld:PushEvent("ms_lockmoonphase", {lock = false})
@@ -1109,6 +1255,7 @@ local WEREEPIC_BOSS = {
         health = TUNING.STALKER_ATRIUM_HEALTH*TUNING.EPIC_WORLD.HEALTH,
         damage = TUNING.STALKER_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
         range = TUNING.STALKER_HIT_RANGE,
+        initanim = "enter",
 
         master_postinit = function (inst)
             inst.AnimState:AddOverrideBuild("stalker_atrium_build")
@@ -1197,6 +1344,7 @@ local WEREEPIC_BOSS = {
         health = TUNING.MUTATED_WARG_HEALTH*TUNING.EPIC_WORLD.HEALTH,
         damage = TUNING.WARG_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
         range = TUNING.WARG_ATTACKRANGE,
+        initanim = "mutate_pre",
 
         master_postinit = function (inst)
             inst.Transform:SetSixFaced()
@@ -1315,6 +1463,7 @@ local WEREEPIC_BOSS = {
         health = TUNING.MUTATED_BEARGER_HEALTH*TUNING.EPIC_WORLD.HEALTH,
         damage = TUNING.MUTATED_BEARGER_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
         range = TUNING.MUTATED_BEARGER_ATTACK_RANGE,
+        initanim = "mutate_pre",
 
         master_postinit = function (inst)
             inst:AddTag("epic_immune_sleep")
@@ -1432,6 +1581,7 @@ local WEREEPIC_BOSS = {
         health = TUNING.MUTATED_DEERCLOPS_HEALTH*TUNING.EPIC_WORLD.HEALTH,
         damage = TUNING.MUTATED_DEERCLOPS_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
         range = TUNING.MUTATED_DEERCLOPS_ATTACK_RANGE/2,
+        initanim = "mutate_pre",
 
         master_postinit = function (inst)
             inst:AddTag("epic_immune_sleep")
@@ -1529,6 +1679,7 @@ local WEREEPIC_BOSS = {
         health = TUNING.ANCIENT_HULK_HEALTH*TUNING.EPIC_WORLD.HEALTH,
         damage = TUNING.ANCIENT_HULK_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
         range = TUNING.ANCIENT_HULK_ATTACK_RANGE,
+        initanim = "activate",
 
         master_postinit = function (inst)
             inst.Transform:SetSixFaced()
@@ -1625,6 +1776,243 @@ local WEREEPIC_BOSS = {
                 inst.ancient_hulk_shotspawn = nil
             end
 
+        end,
+    },
+
+    sharkboi = {
+        build = "sharkboi_build",
+        bank = "sharkboi",
+        scale = 1,
+        phyrad = 1,
+        dyshadow = {3.5, 1.5},
+        freezable = "sharkboi_torso",
+        burnable_damage = 0,
+        hurtsoundoverride = "meta3/sharkboi/hit",
+        deathsoundoverride = "meta3/sharkboi/stunned_pre",
+        music = "dontstarve/music/music_epicfight_sharkboy",
+
+        health = TUNING.SHARKBOI_HEALTH*TUNING.EPIC_WORLD.HEALTH,
+        damage = TUNING.SHARKBOI_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
+        range = TUNING.SHARKBOI_MELEE_RANGE,
+        initanim = "spawn",
+
+        master_postinit = function (inst)
+            inst:AddTag("fireimmune")
+            if inst.components.locomotor then
+                inst.components.locomotor:SetExternalSpeedMultiplier(inst,"sharkboi_speed",4/3)
+            end
+        end,
+
+        master_human = function (inst)
+            inst:RemoveTag("fireimmune")
+            inst:RemoveTag("sharkboi_torpedo")
+            inst:RemoveTag("sharkboi_fin")
+            inst:RemoveTag("sharkboi_fin_out")
+            if inst.components.locomotor then
+                inst.components.locomotor:RemoveExternalSpeedMultiplier(inst,"sharkboi_speed")
+            end
+        end
+    },
+
+    vault_pillar_guard = {
+        build = "vault_pillar_guard",
+        bank = "vault_pillar_guard",
+        scale = 1,
+        phyrad = 1.6,
+        dyshadow = {6, 3.5},
+        burnable_damage = 0,
+        hurtsoundoverride = "rifts7/pillar_guard/voice_hit",
+        deathsoundoverride = "rifts7/pillar_guard/voice_death",
+        music = "dontstarve/music/music_epicfight_pillarguard",
+        walkspeed = 3,
+
+        gogglevision = true,
+        health = TUNING.VAULT_PILLAR_GUARD_HEALTH*TUNING.EPIC_WORLD.HEALTH,
+        damage = TUNING.VAULT_PILLAR_GUARD_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
+        range = TUNING.VAULT_PILLAR_GUARD_ATTACK_RANGE,
+        initanim = "activate",
+
+        master_postinit = function (inst)
+            inst:AddTag("fireimmune")
+            inst:AddTag("epic_immune_freeze")
+            inst:AddTag("epic_immune_sleep")
+            inst:AddTag("epic_immune_electrocute")
+            inst:AddTag("electricdamageimmune")
+            if inst.components.freezable then
+                local old_redirectfn = inst.components.freezable.redirectfn
+                inst.components.freezable:SetRedirectFn(function (inst, coldness, freezetime, nofreeze)
+                    if inst:HasTag("epic_immune_freeze") then
+                        return true
+                    else
+                        if old_redirectfn then
+                            return old_redirectfn(inst, coldness, freezetime, nofreeze)
+                        end
+                    end
+                end)
+            end
+            if inst.components.grogginess then
+                inst.components.grogginess:AddImmunitySource(inst)
+            end
+        end,
+
+        master_human = function (inst)
+            inst:RemoveTag("fireimmune")
+            inst:RemoveTag("epic_immune_electrocute")
+            inst:RemoveTag("epic_immune_sleep")
+            inst:RemoveTag("epic_immune_freeze")
+            inst:RemoveTag("electricdamageimmune")
+            if inst.components.grogginess then
+                inst.components.grogginess:RemoveImmunitySource(inst)
+            end
+        end
+    },
+
+    klaus = {
+        build = "klaus_build",
+        bank = "klaus",
+        scale = 1.2,
+        phyrad = 1.2,
+        dyshadow = {3.5, 1.5},
+        freezable = "swap_fire",
+        burnable = "swap_fire",
+        hurtsoundoverride = "dontstarve/creatures/together/klaus/hit",
+        deathsoundoverride = "dontstarve/creatures/together/klaus/hit",
+        music = "music_epicfight_5a",
+
+        oncollide = bearger_oncollide,
+
+        gogglevision = true,
+        health = TUNING.KLAUS_HEALTH*TUNING.EPIC_WORLD.HEALTH,
+        damage = TUNING.KLAUS_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
+        range = TUNING.KLAUS_HIT_RANGE,
+        initanim = "taunt2",
+
+        master_postinit = function (inst)
+            inst.Transform:SetSixFaced()
+
+            inst:AddTag("deergemresistance")
+            inst:AddTag("klaus_chained")
+
+            if inst.components.commander == nil then
+                inst:AddComponent("commander")
+            end
+            inst.components.commander:SetTrackingDistance(30)
+
+            inst:AddComponent("epicscare")
+            inst.components.epicscare:SetRange(TUNING.KLAUS_EPICSCARE_RANGE)
+
+            SpawnDeer(inst)
+
+            inst:ListenForEvent("attacked", klaus_OnAttacked)
+
+            inst.klaus_recentattackers = {}
+            inst.bearger_recentlycharged = {}
+
+            inst._deer_offsets = inst:DoPeriodicTask(.5, EPIC_SHOWDOWN_FNS.KLAUS.UpdateDeerOffsets, nil, inst)
+        end,
+
+        master_human = function (inst)
+            inst.Transform:SetFourFaced()
+
+            inst:RemoveTag("deergemresistance")
+            inst:RemoveTag("klaus_chained")
+            inst:RemoveTag("klaus_angery")
+
+            inst:RemoveComponent("epicscare")
+
+            inst.components.health.externalabsorbmodifiers:RemoveModifier(inst, "klaus_angery")
+
+            inst:RemoveEventCallback("attacked", klaus_OnAttacked)
+
+            if inst._deer_offsets then
+                inst._deer_offsets:Cancel()
+                inst._deer_offsets = nil
+            end
+        end,
+
+        nextmode = {
+            mode = "klaus2",
+            condition = function (inst,afflicter)
+                inst.klaus_angery = inst:HasTag("klaus_angery") and true or nil
+                return true
+            end,
+        },
+    },
+
+    klaus2 = {
+        build = "klaus_build",
+        bank = "klaus",
+        scale = 1.2,
+        phyrad = 1.2,
+        dyshadow = {3.5, 1.5},
+        freezable = "swap_fire",
+        burnable = "swap_fire",
+        hurtsoundoverride = "dontstarve/creatures/together/klaus/hit",
+        deathsoundoverride = "dontstarve/creatures/together/klaus/hit",
+        music = "music_epicfight_5b",
+
+        oncollide = bearger_oncollide,
+
+        gogglevision = true,
+        health = TUNING.KLAUS_HEALTH*TUNING.EPIC_WORLD.HEALTH,
+        damage = TUNING.KLAUS_DAMAGE*TUNING.EPIC_WORLD.DAMAGE,
+        range = TUNING.KLAUS_HIT_RANGE,
+        initanim = "death_amulet",
+
+        master_postinit = function (inst)
+            inst.Transform:SetSixFaced()
+
+            inst.AnimState:Hide("swap_chain")
+            inst.AnimState:Hide("swap_chain_lock")
+
+            inst:AddTag("deergemresistance")
+
+            if inst.components.commander == nil then
+                inst:AddComponent("commander")
+            end
+            inst.components.commander:SetTrackingDistance(30)
+
+            inst:AddComponent("epicscare")
+            inst.components.epicscare:SetRange(TUNING.KLAUS_EPICSCARE_RANGE)
+
+            if not inst._klaus_has_deer then
+                SpawnDeer(inst)
+            end
+
+            inst:ListenForEvent("attacked", klaus2_OnAttacked)
+
+            inst._deer_offsets = inst:DoPeriodicTask(.5, EPIC_SHOWDOWN_FNS.KLAUS.UpdateDeerOffsets, nil, inst)
+
+            inst.bearger_recentlycharged = {}
+
+            if inst.klaus_angery then
+                inst:AddTag("klaus_angery")
+                EPIC_SHOWDOWN_FNS.KLAUS:Enrage(inst)
+                inst.klaus_angery = nil
+            end
+        end,
+
+        master_human = function (inst)
+            inst.Transform:SetFourFaced()
+
+            inst.AnimState:Show("swap_chain")
+            inst.AnimState:Show("swap_chain_lock")
+
+            inst:RemoveTag("deergemresistance")
+            inst:RemoveTag("klaus_angery")
+
+            inst:RemoveComponent("epicscare")
+
+            inst.components.health.externalabsorbmodifiers:RemoveModifier(inst, "klaus_angery")
+
+            inst:RemoveEventCallback("attacked", klaus2_OnAttacked)
+
+            if inst._deer_offsets then
+                inst._deer_offsets:Cancel()
+                inst._deer_offsets = nil
+            end
+
+            inst._klaus_has_deer = nil
         end,
     },
 }

@@ -3,8 +3,6 @@ local easing = require("easing")
 local assets =
 {
     Asset("ANIM", "anim/epic_chaos_seed.zip"),
-    Asset("IMAGE","images/inventoryimages/epic_chaosseed.tex"),
-	Asset("ATLAS", "images/inventoryimages/epic_chaosseed.xml"),
 }
 
 local assets_icon =
@@ -241,8 +239,6 @@ local function fn()
     inst:AddComponent("inspectable")
 
     inst:AddComponent("inventoryitem")
-    inst.components.inventoryitem.imagename = "epic_chaosseed"
-    inst.components.inventoryitem.atlasname = "images/inventoryimages/epic_chaosseed.xml"
     inst.components.inventoryitem.nobounce = true
 
     inst:AddComponent("prototyper")

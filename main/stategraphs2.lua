@@ -1,3 +1,17 @@
+local EPIC = require("wereepic_boss")
+local sharkboi = EPIC_SHOWDOWN_FNS.SHARKBOI
+local vpg = EPIC_SHOWDOWN_FNS.VAULT_PILLAR_GUARD
+local klaus = EPIC_SHOWDOWN_FNS.KLAUS
+
+local function DoAttackHit(inst)
+    if not inst.sg.statemem.isattack then
+        inst:PerformBufferedAction()
+    else
+        inst:ClearBufferedAction()
+    end
+    inst.sg:RemoveStateTag("abouttoattack")
+end
+
 local function DoHurtSound(inst)
     if inst.hurtsoundoverride ~= nil then
         inst.SoundEmitter:PlaySound(inst.hurtsoundoverride, nil, inst.hurtsoundvolume)
@@ -191,6 +205,108 @@ local function MoonOnRemoveEntity(inst)
         inst._fxback:Remove()
         inst._fxback = nil
     end
+end
+
+---deerclops
+local function SetLightColour(inst, val)
+    if inst.Light ~= nil then
+        inst.Light:SetColour(val, 0, 0)
+    end
+end
+local function SetLightValue(inst, val)
+    if inst.Light ~= nil then
+        inst.Light:SetIntensity(.6 * val * val)
+        inst.Light:SetRadius(8 * val)
+        inst.Light:SetFalloff(3 * val)
+    end
+end
+local function SetLightValueAndOverride(inst, val, override)
+    if inst.Light ~= nil then
+        inst.Light:SetIntensity(.6 * val * val)
+        inst.Light:SetRadius(8 * val)
+        inst.Light:SetFalloff(3 * val)
+        inst.AnimState:SetLightOverride(override)
+    end
+end
+local function SpawnLaser(inst)
+    local numsteps = 10
+    local x, y, z = inst.Transform:GetWorldPosition()
+    local angle = (inst.Transform:GetRotation() + 90) * DEGREES
+    local step = .75
+    local offset = 2 - step --should still hit players right up against us
+    -- local ground = TheWorld.Map
+    local targets, skiptoss = {}, {}
+    local i = -1
+    -- local noground = false
+    local fx, dist, delay, x1, z1
+    while i < numsteps do
+        i = i + 1
+        dist = i * step + offset
+        delay = math.max(0, i - 1)
+        x1 = x + dist * math.sin(angle)
+        z1 = z + dist * math.cos(angle)
+        -- if not ground:IsPassableAtPoint(x1, 0, z1) then
+        --     if i <= 0 then
+        --         return
+        --     end
+        --     noground = true
+        -- end
+        fx = SpawnPrefab(i > 0 and "deerclops_laser" or "deerclops_laserempty")
+        fx.caster = inst
+        fx.Transform:SetPosition(x1, 0, z1)
+        fx:Trigger(delay * FRAMES, targets, skiptoss)
+        if i == 0 then
+            ShakeAllCameras(CAMERASHAKE.FULL, .7, .02, .6, fx, 30)
+        end
+        -- if noground then
+        --     break
+        -- end
+    end
+
+    if i < numsteps then
+        dist = (i + .5) * step + offset
+        x1 = x + dist * math.sin(angle)
+        z1 = z + dist * math.cos(angle)
+    end
+    fx = SpawnPrefab("deerclops_laser")
+    fx.Transform:SetPosition(x1, 0, z1)
+    fx:Trigger((delay + 1) * FRAMES, targets, skiptoss)
+
+    fx = SpawnPrefab("deerclops_laser")
+    fx.Transform:SetPosition(x1, 0, z1)
+    fx:Trigger((delay + 2) * FRAMES, targets, skiptoss)
+end
+---bearger
+local function ShakeIfClose_Pound(inst)
+    ShakeAllCameras(CAMERASHAKE.VERTICAL, .7, .025, 1.25, inst, 40)
+end
+local YAWNTARGET_CANT_TAGS = { "playerghost", "FX", "DECOR", "INLIMBO" }
+local YAWNTARGET_ONEOF_TAGS = { "sleeper", "player" }
+
+local function yawnfn(inst)
+    local x, y, z = inst.Transform:GetWorldPosition()
+    local ents = TheSim:FindEntities(x, y, z, TUNING.BEARGER_YAWN_RANGE, nil, YAWNTARGET_CANT_TAGS, YAWNTARGET_ONEOF_TAGS)
+    for i, v in ipairs(ents) do
+        if v ~= inst and v:IsValid() and
+            not (v.components.freezable ~= nil and v.components.freezable:IsFrozen()) and
+            not (v.components.pinnable ~= nil and v.components.pinnable:IsStuck()) and
+            not (v.components.fossilizable ~= nil and v.components.fossilizable:IsFossilized()) then
+            local mount = v.components.rider ~= nil and v.components.rider:GetMount() or nil
+            if mount ~= nil then
+                mount:PushEvent("ridersleep", { sleepiness = 7, sleeptime = TUNING.BEARGER_YAWN_SLEEPTIME })
+            end
+            if v:HasTag("player") and TheNet:GetPVPEnabled() then
+                v:PushEvent("yawn", { grogginess = 4, knockoutduration = TUNING.BEARGER_YAWN_SLEEPTIME })
+            elseif v.components.sleeper ~= nil then
+                v.components.sleeper:AddSleepiness(7, TUNING.BEARGER_YAWN_SLEEPTIME)
+            elseif v.components.grogginess ~= nil then
+                v.components.grogginess:AddGrogginess(4, TUNING.BEARGER_YAWN_SLEEPTIME)
+            else
+                v:PushEvent("knockedout")
+            end
+        end
+    end
+    return true
 end
 ---dragonfly
 local function dragonfly_spawnlavae(inst)
@@ -1271,7 +1387,7 @@ AddStategraphState("wilson",State{
 			end),
             TimeEvent(65 * FRAMES, function(inst)
                 inst.components.wereepic:OnBecameEpic()
-                inst.sg:GoToState("becameepic")
+                inst.sg:GoToState(EPIC_SHOWDOWN_TUNING.EPIC_BECAME[inst.components.wereepic:GetEpicMode()] or "becameepic")
 			end),
         },
 
@@ -1342,7 +1458,7 @@ AddStategraphState("wilson",State{
 			end),
             TimeEvent(65 * FRAMES, function(inst)
                 inst.components.wereepic:OnBecameEpic()
-                inst.sg:GoToState("becameepic")
+                inst.sg:GoToState(EPIC_SHOWDOWN_TUNING.EPIC_BECAME[inst.components.wereepic:GetEpicMode()] or "becameepic")
 			end),
         },
 
@@ -1367,6 +1483,19 @@ AddStategraphState("wilson",State{
         end,
     })
 
+AddStategraphState("wilson",State{
+        name = "epic_transform_newmode",
+        tags = { "epic_transform_newmode", "epic", "noattack", "notarget" },
+
+        onenter = function (inst,data)
+            local newmode = data and data.newmode or nil
+            if newmode then
+                inst.components.wereepic:TransformEpicMode(newmode)
+            end
+            inst.sg:GoToState(EPIC_SHOWDOWN_TUNING.EPIC_BECAME[newmode] or "becameepic")
+        end
+    })
+
 local anim_idle_boss = {
     moose = true,
     antlion = true,
@@ -1376,6 +1505,8 @@ local anim_idle_boss = {
     alterguardian_phase1 = true,
     alterguardian_phase2 = true,
     ancient_hulk = true,
+    sharkboi = true,
+    vault_pillar_guard = true
 }
 AddStategraphState("wilson",State{
         name = "epic_idle",
@@ -1452,7 +1583,9 @@ AddStategraphState("wilson",State{
             local mode = inst.components.wereepic and inst.components.wereepic:GetEpicMode()
             inst.components.locomotor:Stop()
             inst:ClearBufferedAction()
-            if mode=="bearger" or mode=="mutatedbearger" then
+            if inst:HasTag("stalker_atrium_shield") then
+                inst.AnimState:PlayAnimation("shield")
+            elseif mode=="bearger" or mode=="mutatedbearger" then
                 inst.AnimState:PlayAnimation("standing_hit")
             else
                 inst.AnimState:PlayAnimation("hit")
@@ -1466,7 +1599,7 @@ AddStategraphState("wilson",State{
             DoHurtSound(inst)
 
             --V2C: some of the woodie's were-transforms have shorter hit anims
-			local stun_frames = math.min(inst.AnimState:GetCurrentAnimationNumFrames(), frozen and 12 or 10)
+			local stun_frames = math.min(inst.AnimState:GetCurrentAnimationNumFrames(), frozen and 24 or 20)
             if inst.components.playercontroller ~= nil then
                 --Specify min frames of pause since "busy" tag may be
                 --removed too fast for our network update interval.
@@ -1486,7 +1619,7 @@ AddStategraphState("wilson",State{
 
         timeline =
 		{
-			FrameEvent(5, function(inst) inst.sg:RemoveStateTag("busy") end),
+			FrameEvent(10, function(inst) inst.sg:RemoveStateTag("busy") end),
 		},
 
         events =
@@ -1618,10 +1751,6 @@ AddStategraphState("wilson",State{
                 inst.components.playercontroller:Enable(false)
             end
 
-            --V2C: cuz... freezable component and SG need to match state,
-            --     but messages to SG are queued, so it is not great when
-            --     when freezable component tries to change state several
-            --     times within one frame...
             if inst.components.freezable == nil then
                 inst.sg:GoToState("epic_hit", true)
             elseif inst.components.freezable:IsThawing() then
@@ -1731,6 +1860,11 @@ AddStategraphState("wilson",State{
 
         timeline =
         {
+            TimeEvent(0*FRAMES, function(inst)
+                if inst.sg.statemem.epicmode=="sharkboi" then
+                    inst.SoundEmitter:PlaySound("meta3/sharkboi/sleep_pre")
+                end
+            end),
             TimeEvent(1*FRAMES, function(inst)
                 if inst.sg.statemem.epicmode=="malbatross" then
                     inst.SoundEmitter:PlaySound("turnoftides/common/together/water/splash/jump_boss")
@@ -1817,6 +1951,11 @@ AddStategraphState("wilson",State{
         end,
 
         timeline = {
+            TimeEvent(0*FRAMES, function(inst)
+                if inst.sg.statemem.epicmode=="sharkboi" then
+                    inst.SoundEmitter:PlaySound("meta3/sharkboi/sleep_pst")
+                end
+            end),
             TimeEvent(10*FRAMES, function(inst)
                 if inst.sg.statemem.epicmode=="moose" then
                     inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mossling/hatch")
@@ -1846,6 +1985,310 @@ AddStategraphState("wilson",State{
         onexit = function(inst)
             SetSleeperAwakeState(inst)
         end,
+    })
+
+AddStategraphState("wilson",State{
+        name = "deerclops_laserbeam",
+        tags = { "busy","epic_skill","attack","epic" },
+
+        onenter = function(inst)
+            inst.Physics:Stop()
+            inst.Light:Enable(true)
+			inst.AnimState:SetBuild("deerclops_yule")
+            inst.AnimState:PlayAnimation("atk2")
+			inst.Transform:SetEightFaced()
+			local buffaction = inst:GetBufferedAction()
+            if buffaction then
+				if buffaction.pos then
+					inst:ForceFacePoint(buffaction:GetActionPoint():Get())
+					inst._facepoint_x,inst._facepoint_y,inst._facepoint_z = buffaction:GetActionPoint():Get()
+                elseif buffaction.target and buffaction.target:IsValid() then
+                    local x, y, z = buffaction.target.Transform:GetWorldPosition()
+                    inst:ForceFacePoint(x, y, z)
+                    inst._facepoint_x, inst._facepoint_y, inst._facepoint_z = x, y, z
+                end
+			end
+
+            inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/charge")
+
+            inst:PerformBufferedAction()
+        end,
+
+        onupdate = function(inst)
+            if inst._facepoint_x and inst._facepoint_y and inst._facepoint_z then
+                inst:ForceFacePoint(inst._facepoint_x, inst._facepoint_y, inst._facepoint_z)
+            end
+            if inst.sg.statemem.lightval then
+                inst.sg.statemem.lightval = inst.sg.statemem.lightval * .99
+                SetLightValueAndOverride(inst, inst.sg.statemem.lightval, (inst.sg.statemem.lightval - 1) * 3)
+            end
+        end,
+
+        timeline =
+        {
+			TimeEvent(FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/attack", nil) end),
+			TimeEvent(4 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/step", nil, .7) end),
+            TimeEvent(6 * FRAMES, function(inst)
+                ShakeAllCameras(CAMERASHAKE.VERTICAL, .2, .02, .5, inst, 40)
+                SetLightValue(inst, .97)
+            end),
+            TimeEvent(7 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1, .2) end),
+            TimeEvent(8 * FRAMES, function(inst) SetLightValueAndOverride(inst, .99, .15) end),
+            TimeEvent(9 * FRAMES, function(inst) SetLightValueAndOverride(inst, .97, .05) end),
+            TimeEvent(10 * FRAMES, function(inst) SetLightValueAndOverride(inst, .96, 0) end),
+            TimeEvent(11 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.01, .35) end),
+            TimeEvent(12 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1, .3) end),
+            TimeEvent(13 * FRAMES, function(inst) SetLightValueAndOverride(inst, .95, .05) end),
+            TimeEvent(14 * FRAMES, function(inst) SetLightValueAndOverride(inst, .94, 0) end),
+            TimeEvent(15 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1, .3) end),
+            TimeEvent(16 * FRAMES, function(inst) SetLightValueAndOverride(inst, .99, .25) end),
+            TimeEvent(17 * FRAMES, function(inst) SetLightValueAndOverride(inst, .92, .05) end),
+            TimeEvent(18 * FRAMES, function(inst)
+                SetLightValueAndOverride(inst, .9, 0)
+				inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/taunt_howl", nil, .4)
+            end),
+            TimeEvent(19 * FRAMES, function(inst)
+                inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/laser")
+                SpawnLaser(inst)
+                SetLightValueAndOverride(inst, 1.08, .7)
+            end),
+            TimeEvent(20 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.12, 1) end),
+            TimeEvent(21 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.1, .9) end),
+            TimeEvent(22 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.06, .4) end),
+            TimeEvent(23 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.1, .6) end),
+            TimeEvent(24 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.06, .3) end),
+            TimeEvent(25 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.05, .25) end),
+            TimeEvent(26 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.1, .5) end),
+            TimeEvent(27 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.08, .45) end),
+            TimeEvent(28 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.05, .2) end),
+            TimeEvent(29 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.1, .3) end),
+            TimeEvent(30 * FRAMES, function(inst)
+                inst.sg.statemem.lightval = 1.1
+            end),
+            TimeEvent(32 * FRAMES, function(inst)
+				inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/taunt_grrr", nil, .5)
+                inst.sg.statemem.lightval = 1.035
+                SetLightColour(inst, .9)
+            end),
+            TimeEvent(33 * FRAMES, function(inst) SetLightColour(inst, .8) end),
+			TimeEvent(41 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/step", nil, .7) end),
+            TimeEvent(43 * FRAMES, function(inst)
+                ShakeAllCameras(CAMERASHAKE.VERTICAL, .3, .02, .7, inst, 40)
+            end),
+            TimeEvent(47 * FRAMES, function(inst)
+                inst.sg.statemem.lightval = nil
+                SetLightValueAndOverride(inst, .9, 0)
+                SetLightColour(inst, .9)
+            end),
+            TimeEvent(48 * FRAMES, function(inst)
+                inst.sg:RemoveStateTag("busy")
+                SetLightValue(inst, 1)
+                SetLightColour(inst, 1)
+            end),
+        },
+
+        events =
+        {
+            EventHandler("animover", function(inst)
+                inst.sg.statemem.keepfacing = true
+                inst.sg:GoToState("epic_idle")
+            end),
+        },
+
+        onexit = function(inst)
+            SetLightValueAndOverride(inst, 1, 0)
+            SetLightColour(inst, 1)
+			inst.Transform:SetFourFaced()
+        end,
+    })
+
+---bearger
+AddStategraphState("wilson",State{
+		name = "bearger_pound",
+		tags = { "attack", "busy","epic_skill","epic" },
+
+		onenter = function(inst)
+			inst.components.locomotor:StopMoving()
+			inst.AnimState:PlayAnimation("ground_pound")
+            inst.AnimState:PushAnimation("to_bi",false)
+
+            inst:PerformBufferedAction()
+		end,
+
+		timeline =
+		{
+			FrameEvent(13, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/bearger/swhoosh") end),
+			FrameEvent(20, function(inst)
+				ShakeIfClose_Pound(inst)
+				inst.components.groundpounder:GroundPound()
+				inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/bearger/groundpound")
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg:GoToState("epic_idle")
+				end
+			end),
+		},
+	})
+
+AddStategraphState("wilson",State{
+		name = "bearger_yawn",
+		tags = { "yawn", "busy","epic_skill","epic","pausepredict","bearger_yawn" },
+
+		onenter = function(inst)
+			inst.components.locomotor:StopMoving()
+			inst.AnimState:PlayAnimation("yawn")
+			inst.AnimState:PushAnimation( "yawn_pst", false)
+			if inst.components.playercontroller then
+                inst.components.playercontroller:RemotePausePrediction()
+            end
+		end,
+
+		timeline =
+		{
+			FrameEvent(22, function(inst)
+				inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/bearger/yawn")
+			end),
+			FrameEvent(50, yawnfn),
+			FrameEvent(65, function(inst)
+				inst.sg:RemoveStateTag("busy")
+				inst.sg:AddStateTag("canrotate")
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animqueueover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg:GoToState("epic_idle")
+				end
+			end),
+		},
+	})
+
+---moose
+AddStategraphState("wilson",State{
+		name = "moose_meep",
+		tags = {"busy","epic","epic_skill","moose_meep","pausepredict",},
+
+		onenter = function(inst)
+			inst.Physics:Stop()
+			inst.AnimState:PlayAnimation("meep")
+            if inst.components.playercontroller then
+                inst.components.playercontroller:RemotePausePrediction()
+            end
+		end,
+
+		timeline=
+		{
+			TimeEvent(7*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mossling/flap") end),
+			TimeEvent(10*FRAMES, function(inst)
+                if TheWorld.state.season=="spring" then
+                    if inst.moose_meep_num then
+                        inst.moose_meep_num = inst.moose_meep_num + 1
+                    else
+                        inst.moose_meep_num = 0
+                    end
+                    if inst.moose_meep_num>=10 then
+                        local moose = SpawnPrefab("moose")
+                        local x,y,z = inst.Transform:GetWorldPosition()
+                        local x_offset = math.random(-3,3)
+                        local z_offset = math.random(-3,3)
+                        moose.Transform:SetPosition(x+x_offset,10,z+z_offset)
+                        moose.sg:GoToState("glide")
+                        inst.moose_meep_num = -30
+                    end
+                end
+            end),
+			TimeEvent(10*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mossling/honk") end),
+			TimeEvent(11*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mossling/flap") end),
+			TimeEvent(15*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mossling/flap") end),
+			TimeEvent(19*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mossling/flap") end),
+			TimeEvent(23*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mossling/flap") end),
+		},
+
+		events=
+		{
+			EventHandler("animover", function(inst) inst.sg:GoToState("epic_idle") end),
+		},
+	})
+
+---antlion
+AddStategraphState("wilson",State{
+        name = "antlion_hightributeresponse",
+        tags = { "busy" ,"epic","epic_skill","pausepredict","antlion_hightributeresponse"},
+
+        onenter = function(inst)
+            inst.AnimState:PlayAnimation("full_pre")
+            inst.AnimState:PushAnimation("full_loop", false)
+            inst.AnimState:PushAnimation("full_pst", false)
+            if inst.components.playercontroller then
+                inst.components.playercontroller:RemotePausePrediction()
+            end
+        end,
+
+        timeline =
+        {
+            TimeEvent(0, function(inst)
+                inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/purr")
+                inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/rub")
+            end),
+            TimeEvent(16 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/rub") end),
+            TimeEvent(30 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/rub") end),
+            TimeEvent(46 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/rub") end),
+        },
+
+        events =
+        {
+            EventHandler("animqueueover", function(inst)
+                if inst.AnimState:AnimDone() then
+                    inst.sg:GoToState("epic_idle")
+                end
+            end),
+        },
+    })
+
+AddStategraphState("wilson",State{
+        name = "antlion_eat",
+        tags = { "busy", "caninterrupt","epic","epic_skill","pausepredict","antlion_eat" },
+
+        onenter = function(inst)
+            inst.AnimState:PlayAnimation("eat")
+            inst.components.burnable:Extinguish()
+            if inst.components.playercontroller then
+                inst.components.playercontroller:RemotePausePrediction()
+            end
+        end,
+
+        timeline =
+        {
+            TimeEvent(12 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/eat") end),
+            TimeEvent(36 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/eat") end),
+            TimeEvent(38 * FRAMES, function(inst)
+                if not inst.components.health:IsDead() then
+                    inst.components.health:DoDelta(TUNING.ANTLION_EAT_HEALING*TUNING.EPIC_WORLD.HEALTH)
+                end
+            end),
+            TimeEvent(59 * FRAMES, function(inst)
+                if not inst.components.health:IsDead() then
+                    inst.components.health:DoDelta(TUNING.ANTLION_EAT_HEALING*TUNING.EPIC_WORLD.HEALTH)
+                end
+            end),
+            TimeEvent(71 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/swallow") end),
+        },
+
+        events =
+        {
+            EventHandler("animover", function(inst)
+                if inst.AnimState:AnimDone() then
+                    inst.sg:GoToState("epic_idle")
+                end
+            end),
+        },
     })
 
 ---dragonfly
@@ -2267,7 +2710,7 @@ AddStategraphState("wilson",State{
 
 AddStategraphState("wilson",State{
         name = "stalker_atrium_eat_pre",
-        tags = { "busy", "feasting","epic","epic_skill","pausepredict" },
+        tags = { "busy", "feasting","epic","epic_skill","nopredict" },
 
         onenter = function(inst)
             inst.components.locomotor:StopMoving()
@@ -2294,7 +2737,7 @@ AddStategraphState("wilson",State{
 
 AddStategraphState("wilson",State{
         name = "stalker_atrium_eat_idle",
-        tags = { "busy", "feasting","epic","epic_skill","pausepredict" },
+        tags = { "busy", "feasting","epic","epic_skill","nopredict" },
 
         onenter = function(inst, data)
             local ishurt = inst.components.health:IsHurt()
@@ -2338,7 +2781,7 @@ AddStategraphState("wilson",State{
 
 AddStategraphState("wilson",State{
         name = "stalker_atrium_eat_loop",
-        tags = { "busy", "feasting","epic","epic_skill","pausepredict" },
+        tags = { "busy", "feasting","epic","epic_skill","nopredict" },
 
         onenter = function(inst, data)
             inst.components.locomotor:StopMoving()
@@ -2381,7 +2824,7 @@ AddStategraphState("wilson",State{
 
 AddStategraphState("wilson",State{
         name = "stalker_atrium_eat_pst",
-        tags = { "busy","epic","epic_skill","pausepredict" },
+        tags = { "busy","epic","epic_skill","nopredict" },
 
         onenter = function(inst)
             inst.components.locomotor:StopMoving()
@@ -3753,12 +4196,1462 @@ AddStategraphState("wilson",State{
         end
     })
 
+--sharkboi
+AddStategraphState("wilson",State{
+		name = "sharkboi_ice_summon",
+		tags = { "busy", "candefeat", "noelectrocute","epic","epic_skill" },
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+			inst.AnimState:PlayAnimation("ice_summon")
+
+            local buffaction = inst:GetBufferedAction()
+            if buffaction then
+				if buffaction.pos then
+					inst:ForceFacePoint(buffaction:GetActionPoint():Get())
+					inst._facepoint_x,inst._facepoint_y,inst._facepoint_z = buffaction:GetActionPoint():Get()
+                elseif buffaction.target and buffaction.target:IsValid() then
+                    local x, y, z = buffaction.target.Transform:GetWorldPosition()
+                    inst:ForceFacePoint(x, y, z)
+                    inst._facepoint_x, inst._facepoint_y, inst._facepoint_z = x, y, z
+                    inst.sg.statemem.target = buffaction.target
+                end
+                inst.sg.statemem.targetpos = Vector3(inst._facepoint_x, inst._facepoint_y, inst._facepoint_z)
+			end
+            inst:PerformBufferedAction()
+		end,
+
+		onupdate = function(inst)
+			if inst.sg.statemem.targetpos then
+				if inst.sg.statemem.target then
+					if inst.sg.statemem.target:IsValid() then
+						local p = inst.sg.statemem.targetpos
+						p.x, p.y, p.z = inst.sg.statemem.target.Transform:GetWorldPosition()
+					else
+						inst.sg.statemem.target = nil
+					end
+				end
+				local rot = inst.Transform:GetRotation()
+				local rot1 = inst:GetAngleToPoint(inst.sg.statemem.targetpos)
+				local drot = ReduceAngle(rot1 - rot)
+				if math.abs(drot) < 90 then
+					rot1 = rot + math.clamp(drot / 2, -2, 2)
+					inst.Transform:SetRotation(rot1)
+				end
+			end
+		end,
+
+		timeline =
+		{
+			FrameEvent(10, function(inst) inst.SoundEmitter:PlaySound("meta3/sharkboi/attack_small") end),
+			FrameEvent(35, function(inst)
+				inst.SoundEmitter:PlaySound("meta3/sharkboi/attack_big")
+				inst.sg.statemem.target = nil
+				inst.sg.statemem.targetpos = nil
+
+				local x, y, z = inst.Transform:GetWorldPosition()
+				local theta = inst.Transform:GetRotation() * DEGREES
+				x = x + math.cos(theta)
+				z = z - math.sin(theta)
+				inst.sg.statemem.fx = SpawnPrefab("sharkboi_icetunnel_fx")
+				inst.sg.statemem.fx.Transform:SetPosition(x, 0, z)
+				inst.sg.statemem.fx.Transform:SetRotation(inst.Transform:GetRotation())
+			end),
+			FrameEvent(42, function(inst)
+				inst.sg:RemoveStateTag("noelectrocute")
+			end),
+			FrameEvent(58, function(inst)
+				inst.sg:AddStateTag("caninterrupt")
+                inst.sg:RemoveStateTag("busy")
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg.statemem.not_interrupted = true
+					inst.sg:GoToState("epic_idle")
+				end
+			end),
+		},
+
+		onexit = function(inst)
+			if not inst.sg.statemem.not_interrupted and inst.sg.statemem.fx and inst.sg.statemem.fx:IsValid() then
+				inst.sg.statemem.fx:Remove()
+			end
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "sharkboi_torpedo_pre",
+		tags = { "attack", "busy", "torpedoready","epic","epic_skill" },
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+			inst.AnimState:PlayAnimation("torpedo_pre")
+			inst.SoundEmitter:PlaySound("meta3/sharkboi/attack_small")
+
+            inst:RemoveTag("sharkboi_torpedo")
+
+			local buffaction = inst:GetBufferedAction()
+            if buffaction then
+				if buffaction.pos then
+					inst:ForceFacePoint(buffaction:GetActionPoint():Get())
+					inst._facepoint_x,inst._facepoint_y,inst._facepoint_z = buffaction:GetActionPoint():Get()
+                elseif buffaction.target and buffaction.target:IsValid() then
+                    local x, y, z = buffaction.target.Transform:GetWorldPosition()
+                    inst:ForceFacePoint(x, y, z)
+                    inst._facepoint_x, inst._facepoint_y, inst._facepoint_z = x, y, z
+                    inst.sg.statemem.target = buffaction.target
+                end
+                inst.sg.statemem.targetpos = Vector3(inst._facepoint_x, inst._facepoint_y, inst._facepoint_z)
+			end
+            inst:PerformBufferedAction()
+		end,
+
+		onupdate = function(inst)
+			if inst.sg.statemem.targetpos then
+				if inst.sg.statemem.target then
+					if inst.sg.statemem.target:IsValid() then
+						local p = inst.sg.statemem.targetpos
+						p.x, p.y, p.z = inst.sg.statemem.target.Transform:GetWorldPosition()
+					else
+						inst.sg.statemem.target = nil
+					end
+				end
+				local rot = inst.Transform:GetRotation()
+				local rot1 = inst:GetAngleToPoint(inst.sg.statemem.targetpos)
+				local drot = ReduceAngle(rot1 - rot)
+				if math.abs(drot) < 90 then
+					rot1 = rot + math.clamp(drot / 2, -2, 2)
+					inst.Transform:SetRotation(rot1)
+				end
+			end
+		end,
+
+		timeline =
+		{
+			FrameEvent(14, function(inst)
+				if inst.sg.statemem.quick then
+					PlayFootstep(inst)
+				end
+			end),
+			FrameEvent(20, function(inst)
+				if inst.sg.statemem.slightlyquick then
+					PlayFootstep(inst)
+				end
+			end),
+			FrameEvent(30, function(inst)
+				if not (inst.sg.statemem.quick or inst.sg.statemem.slightlyquick) then
+					PlayFootstep(inst)
+				end
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg:GoToState("sharkboi_torpedo_jump")
+				end
+			end),
+		},
+	})
+
+AddStategraphState("wilson",State{
+		name = "sharkboi_torpedo_jump",
+		tags = { "busy", "jumping", "nosleep", "epic","epic_skill","nopredict" },
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+			inst.AnimState:PlayAnimation("torpedo_jump")
+			inst.SoundEmitter:PlaySound("meta3/sharkboi/attack_big")
+			inst.Physics:SetMotorVelOverride(16, 0, 0)
+			inst.sg.statemem.targets = {}
+		end,
+
+		onupdate = function(inst)
+			sharkboi:DoAOEAttackAndWork(inst, 0, 2.5, nil, 1, nil, inst.sg.statemem.targets)
+		end,
+
+		timeline =
+		{
+			FrameEvent(8, function(inst)
+				inst.SoundEmitter:PlaySound("meta3/sharkboi/torpedo_drill", "drill")
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg.statemem.torpedo = true
+					inst.sg:GoToState("sharkboi_torpedo")
+				end
+			end),
+		},
+
+		onexit = function(inst)
+			if not inst.sg.statemem.torpedo then
+				inst.SoundEmitter:KillSound("drill")
+				inst.Physics:ClearMotorVelOverride()
+				inst.Physics:Stop()
+			end
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "sharkboi_torpedo",
+		tags = { "busy", "jumping", "nosleep", "epic","epic_skill","nopredict" },
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+			inst.Transform:SetEightFaced()
+			inst.AnimState:PlayAnimation("torpedo_loop", true)
+			inst.Physics:SetMotorVelOverride(16, 0, 0)
+			inst.sg:SetTimeout(1)
+			inst.sg.statemem.targets = {}
+			inst.sg.statemem.icedelay = 0
+			inst.sg.statemem.traildelay = 0
+			inst.sg.statemem.shakedelay = 8
+			sharkboi:DoImpactShake(inst)
+			if not inst.SoundEmitter:PlayingSound("drill") then
+				inst.SoundEmitter:PlaySound("meta3/sharkboi/torpedo_drill", "drill")
+			end
+		end,
+
+		onupdate = function(inst)
+			sharkboi:DoAOEAttackAndDig(inst, -0.4, 3, nil, 1, nil, inst.sg.statemem.targets)
+			if inst.sg.currentstate.name ~= "sharkboi_torpedo" then
+				return
+			end
+			if inst.sg.statemem.icedelay > 0 then
+				inst.sg.statemem.icedelay = inst.sg.statemem.icedelay - 1
+			else
+				inst.sg.statemem.icedelay = 3
+				sharkboi:SpawnIcePlowFX(inst, 2)
+				sharkboi:SpawnIcePlowFX(inst, -2)
+				sharkboi:SpawnIceTrailFX(inst)
+			end
+			if inst.sg.statemem.traildelay > 0 then
+				inst.sg.statemem.traildelay = inst.sg.statemem.traildelay - 1
+			else
+				inst.sg.statemem.traildelay = 2
+				sharkboi:SpawnIceTrailFX(inst)
+			end
+			if inst.sg.statemem.shakedelay > 0 then
+				inst.sg.statemem.shakedelay = inst.sg.statemem.shakedelay - 1
+			else
+				inst.sg.statemem.shakedelay = 6
+				sharkboi:DoDiggingShake(inst)
+			end
+		end,
+
+        timeline =
+		{
+			FrameEvent(10, function(inst)
+				inst.sg.statemem.targets = {}
+			end),
+            FrameEvent(20, function(inst)
+				inst.sg.statemem.targets = {}
+			end),
+            FrameEvent(30, function(inst)
+				inst.sg.statemem.targets = {}
+			end),
+            FrameEvent(50, function(inst)
+				inst.sg.statemem.targets = {}
+			end),
+		},
+
+		ontimeout = function(inst)
+			inst.sg:GoToState("sharkboi_torpedo_climb")
+		end,
+
+		onexit = function(inst)
+			inst.Transform:SetFourFaced()
+			inst.Physics:ClearMotorVelOverride()
+			inst.Physics:Stop()
+			inst.SoundEmitter:KillSound("drill")
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "sharkboi_torpedo_climb",
+		tags = { "busy", "dizzy", "nosleep", "noelectrocute","epic","epic_skill","nopredict" },
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+			inst.AnimState:PlayAnimation("torpedo_climb")
+            inst.AnimState:PushAnimation("torpedo_pst",false)
+		end,
+
+		timeline =
+		{
+			FrameEvent(32, function(inst) inst.SoundEmitter:PlaySound("meta3/sharkboi/hit") end),
+			FrameEvent(36, function(inst)
+				inst.sg:RemoveStateTag("nosleep")
+				inst.sg:RemoveStateTag("noelectrocute")
+				inst.sg:AddStateTag("caninterrupt")
+			end),
+            FrameEvent(61, function(inst)
+				inst.SoundEmitter:PlaySound("meta3/sharkboi/talk", nil, 0.4)
+				inst.SoundEmitter:PlaySound("meta3/sharkboi/hit", nil, 0.6)
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg:GoToState("epic_idle")
+				end
+			end),
+		},
+	})
+
+AddStategraphState("wilson",State{
+		name = "sharkboi_standing_dive_jump_pre",
+		tags = { "busy", "fastdig", "digging", "nosleep", "epic","epic_skill","sharkboi_standing_dive_jump_pre","pausepredict" },
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+			inst.AnimState:PlayAnimation("icedive_standing_jump_pre")
+            inst.AnimState:PushAnimation("icedive_dig_pst",false)
+            if inst.components.playercontroller then
+                inst.components.playercontroller:RemotePausePrediction()
+            end
+		end,
+
+		timeline =
+		{
+			FrameEvent(10, PlayFootstep),
+            FrameEvent(13, function (inst)
+                inst.sg.statemem.fx = sharkboi:SpawnIceHoleFX(inst)
+			    inst.sg.statemem.fx.AnimState:Pause()
+            end),
+            FrameEvent(15, function (inst)
+                inst.SoundEmitter:PlaySound("meta3/sharkboi/popup")
+            end),
+            FrameEvent(16, function (inst)
+                sharkboi:DoDiggingShake(inst)
+            end),
+            FrameEvent(17, function(inst)
+				inst.sg:AddStateTag("noattack")
+				inst.sg:AddStateTag("temp_invincible")
+				inst.DynamicShadow:Enable(false)
+				sharkboi:SpawnIcePlowFX(inst)
+			end),
+			FrameEvent(23, function(inst)
+				inst.sg.statemem.fx.AnimState:Resume()
+				inst.sg.statemem.fx = nil
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+                    inst.sg.statemem.fin = true
+					inst.sg:GoToState("sharkboi_fin_idle")
+				end
+			end),
+		},
+
+        onexit = function(inst)
+			if not inst.sg.statemem.fin then
+				inst.DynamicShadow:Enable(true)
+			end
+			if inst.sg.statemem.fx then
+				inst.sg.statemem.fx.AnimState:Resume()
+			end
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "sharkboi_dive_jump_pre",
+		tags = { "busy", "nosleep", "noattack", "invisible", "temp_invincible", "noelectrocute","epic","epic_skill" },
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+			inst.AnimState:PlayAnimation("icedive_jump_pre")
+			inst.DynamicShadow:Enable(false)
+			local buffaction = inst:GetBufferedAction()
+            if buffaction then
+				if buffaction.pos then
+					inst:ForceFacePoint(buffaction:GetActionPoint():Get())
+					inst._facepoint_x,inst._facepoint_y,inst._facepoint_z = buffaction:GetActionPoint():Get()
+                elseif buffaction.target and buffaction.target:IsValid() then
+                    local x, y, z = buffaction.target.Transform:GetWorldPosition()
+                    inst:ForceFacePoint(x, y, z)
+                    inst._facepoint_x, inst._facepoint_y, inst._facepoint_z = x, y, z
+                    inst.sg.statemem.target = buffaction.target
+                end
+                inst.sg.statemem.targetpos = Vector3(inst._facepoint_x, inst._facepoint_y, inst._facepoint_z)
+			end
+            inst:PerformBufferedAction()
+			sharkboi:DoDiggingShake(inst)
+            inst.Physics:SetCollisionMask(COLLISION.WORLD)
+		end,
+
+		onupdate = function(inst)
+			if inst.sg.statemem.targets then
+				local targets = inst.sg.statemem.targets
+				sharkboi:DoAOEAttackAndDig(inst, 0, 2, nil, 1, nil, targets)
+				if targets ~= inst.sg.statemem.targets then
+					--checks if we left state or not
+					return
+				end
+			end
+
+			local target = inst.sg.statemem.target
+			if target then
+				if target:IsValid() then
+					local pos = inst.sg.statemem.targetpos
+					pos.x, pos.y, pos.z = target.Transform:GetWorldPosition()
+					if target.Physics then
+						--lead the target a bit
+						local vx, vy, vz = target.Physics:GetVelocity()
+						pos.x = pos.x + vx * 0.3
+						pos.z = pos.z + vz * 0.3
+					end
+					local rot = inst.Transform:GetRotation()
+					local rot1 = inst:GetAngleToPoint(pos)
+					if DiffAngle(rot, rot1) < 45 then
+						inst.Transform:SetRotation(rot1)
+					else
+						inst.sg.statemem.target = nil
+					end
+				else
+					inst.sg.statemem.target = nil
+				end
+			end
+		end,
+
+		timeline =
+		{
+			FrameEvent(3, function(inst)
+				inst.sg:RemoveStateTag("invisible")
+				inst.sg:RemoveStateTag("temp_invincible")
+				inst.DynamicShadow:Enable(true)
+				inst.components.combat:StartAttack()
+				inst.sg.statemem.targets = {}
+				inst.SoundEmitter:PlaySound("meta3/sharkboi/popup")
+				sharkboi:SpawnIceImpactFX(inst)
+				sharkboi:DoJumpOutShake(inst)
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg:GoToState("sharkboi_dive_jump", inst.sg.statemem.targetpos)
+				end
+			end),
+		},
+
+		onexit = function(inst)
+			inst.DynamicShadow:Enable(true)
+            inst.Physics:SetCollisionMask(
+                COLLISION.WORLD,
+                COLLISION.OBSTACLES,
+                COLLISION.CHARACTERS,
+                COLLISION.GIANTS
+            )
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "sharkboi_dive_jump",
+		tags = { "busy", "jumping", "nosleep", "noelectrocute","epic","epic_skill" ,"nopredict" },
+
+		onenter = function(inst, pos)
+			inst.components.locomotor:Stop()
+			inst.AnimState:PlayAnimation("icedive_jump")
+			inst.SoundEmitter:PlaySound("meta3/sharkboi/attack_big")
+
+			local x, y, z = inst.Transform:GetWorldPosition()
+			sharkboi:SpawnIceHoleFX(inst, x, z)
+			
+
+			local theta = inst.Transform:GetRotation() * DEGREES
+			local costheta = math.cos(theta)
+			local sintheta = math.sin(theta)
+			local dist = 6
+			if pos then
+				local dx = pos.x - x
+				local dz = pos.z - z
+				if dx == 0 and dz == 0 then
+					dist = 2
+				else
+					local theta1 = math.atan2(-dz, dx)
+					local dtheta = DiffAngleRad(theta, theta1)
+					dist = math.sqrt(dx * dx + dz * dz) * math.cos(dtheta)
+					dist = math.clamp(math.abs(dist), 2, 8)
+				end
+			end
+			--V2C: allow jumping over gaps, since we can't get interrupted by death
+			local map = TheWorld.Map
+			while dist > 1 and not map:IsVisualGroundAtPoint(x + costheta * dist, 0, z - sintheta * dist) do
+				dist = math.max(1, dist - 0.5)
+			end
+			local speed = dist / inst.AnimState:GetCurrentAnimationLength()
+			inst.Physics:SetMotorVelOverride(speed, 0, 0)
+			inst.Physics:SetCollisionMask(COLLISION.WORLD)
+		end,
+
+		timeline =
+		{
+			FrameEvent(20, function(inst)
+				inst.sg.statemem.targets = {}
+				sharkboi:DoAOEAttack(inst, 0, 2, nil, 1, nil, inst.sg.statemem.targets)
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg:GoToState("sharkboi_dive_dig_pre")
+				end
+			end),
+		},
+
+		onexit = function(inst)
+			inst.Physics:ClearMotorVelOverride()
+			inst.Physics:Stop()
+			inst.Physics:SetCollisionMask(
+                COLLISION.WORLD,
+                COLLISION.OBSTACLES,
+                COLLISION.CHARACTERS,
+                COLLISION.GIANTS
+            )
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "sharkboi_dive_dig_pre",
+		tags = { "digging", "busy", "caninterrupt", "nosleep","epic","epic_skill" ,"nopredict","noelectrocute"  },
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+			inst.AnimState:PlayAnimation("icedive_dig_pre")
+			inst.SoundEmitter:PlaySound("meta3/sharkboi/divedown")
+			sharkboi:SpawnIceImpactFX(inst)
+			sharkboi:DoImpactShake(inst)
+			sharkboi:DoAOEAttackAndDig(inst, 0, 2, nil, 1, nil, {})
+		end,
+
+		events =
+		{
+            EventHandler("attacked", function(inst)
+				inst.sg:GoToState("sharkboi_dive_dig_stun")
+			end),
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+                    if inst:HasTag("sharkboi_fin_out") then
+                        inst.sg:GoToState("sharkboi_dive_dig_stun")
+                    else
+                        inst.sg:GoToState("sharkboi_dive_dig_pst")
+                    end
+				end
+			end),
+		},
+	})
+
+AddStategraphState("wilson",State{
+		name = "sharkboi_dive_dig_pst",
+		tags = { "digging", "busy", "nosleep","epic","epic_skill" ,"nopredict","noelectrocute"},
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+			inst.AnimState:PlayAnimation("icedive_dig_pst")
+			inst.sg.statemem.fx = sharkboi:SpawnIceHoleFX(inst)
+			inst.sg.statemem.fx.AnimState:Pause()
+		end,
+
+		timeline =
+		{
+			FrameEvent(2, function(inst) inst.SoundEmitter:PlaySound("meta3/sharkboi/popup") end),
+			FrameEvent(3, function (inst)
+                sharkboi:DoDiggingShake(inst)
+            end),
+			FrameEvent(4, function(inst)
+                inst.sg.statemem.cannotstun = true
+				inst.sg:AddStateTag("noattack")
+				inst.sg:AddStateTag("temp_invincible")
+				inst.Physics:SetCollisionMask(COLLISION.WORLD)
+				inst.DynamicShadow:Enable(false)
+				sharkboi:SpawnIcePlowFX(inst)
+			end),
+			FrameEvent(10, function(inst)
+				inst.sg.statemem.fx.AnimState:Resume()
+				inst.sg.statemem.fx = nil
+			end),
+		},
+
+		events =
+		{
+            EventHandler("attacked", function(inst)
+                if not inst.sg.statemem.cannotstun then
+                    inst.sg:GoToState("sharkboi_dive_dig_stun")
+                end
+			end),
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg.statemem.fin = true
+					inst.sg:GoToState("sharkboi_fin_idle")
+				end
+			end),
+		},
+
+		onexit = function(inst)
+			if not inst.sg.statemem.fin then
+				inst.Physics:SetCollisionMask(
+                    COLLISION.WORLD,
+                    COLLISION.OBSTACLES,
+                    COLLISION.CHARACTERS,
+                    COLLISION.GIANTS
+                )
+				inst.DynamicShadow:Enable(true)
+			end
+			if inst.sg.statemem.fx then
+				inst.sg.statemem.fx.AnimState:Resume()
+			end
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "sharkboi_dive_dig_stun",
+		tags = { "busy", "dizzy", "jumping", "nosleep","epic","epic_skill" ,"nopredict" },
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+			inst.AnimState:PlayAnimation("icedive_stun")
+			inst.SoundEmitter:PlaySound("meta3/sharkboi/popup")
+			local x, y, z = inst.Transform:GetWorldPosition()
+			sharkboi:SpawnIceImpactFX(inst, x, z)
+			sharkboi:SpawnIceHoleFX(inst, x, z)
+			sharkboi:DoDiggingShake(inst)
+			inst.Physics:SetMotorVelOverride(4, 0, 0)
+            inst.DynamicShadow:Enable(true)
+            inst.Physics:SetCollisionMask(
+                COLLISION.WORLD,
+                COLLISION.OBSTACLES,
+                COLLISION.CHARACTERS,
+                COLLISION.GIANTS
+            )
+            inst:RemoveTag("sharkboi_fin")
+            inst:RemoveTag("sharkboi_fin_out")
+            if inst.components.spellbookcooldowns then
+                inst.components.spellbookcooldowns:RestartSpellCooldown("epic_transform", 24)
+            end
+		end,
+
+		timeline =
+		{
+			--Bounce
+			FrameEvent(9, PlayFootstep),
+			FrameEvent(12, function(inst) inst.Physics:SetMotorVelOverride(2, 0, 0) end),
+			FrameEvent(12, function (inst)
+                sharkboi:DoDiggingShake(inst)
+            end),
+
+			--Bounce
+			FrameEvent(17, PlayFootstep),
+			FrameEvent(20, function(inst) inst.Physics:SetMotorVelOverride(1, 0, 0) end),
+			FrameEvent(21, function(inst) inst.Physics:SetMotorVelOverride(0.5, 0, 0) end),
+			FrameEvent(22, function(inst) inst.Physics:SetMotorVelOverride(0.25, 0, 0) end),
+			FrameEvent(23, function(inst)
+				inst.Physics:ClearMotorVelOverride()
+				inst.Physics:Stop()
+			end),
+
+			FrameEvent(29, function(inst) PlayFootstep(inst, 0.5) end),
+			FrameEvent(36, function(inst) PlayFootstep(inst, 0.5) end),
+			FrameEvent(59, function(inst) PlayFootstep(inst, 0.75) end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg:GoToState("epic_idle")
+				end
+			end),
+		},
+
+		onexit = function(inst)
+			inst.Physics:ClearMotorVelOverride()
+			inst.Physics:Stop()
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "sharkboi_fin_idle",
+		tags = { "fin", "idle", "canrotate", "nosleep", "noattack", "invisible", "noelectrocute","epic" },
+
+		onenter = function(inst)
+			inst.components.locomotor:StopMoving()
+			inst:Hide()
+			inst.Physics:SetCollisionMask(COLLISION.WORLD)
+            inst.DynamicShadow:Enable(false)
+		end,
+
+		onexit = function(inst)
+			inst:Show()
+            inst.Physics:SetCollisionMask(
+                COLLISION.WORLD,
+                COLLISION.OBSTACLES,
+                COLLISION.CHARACTERS,
+                COLLISION.GIANTS
+            )
+            inst.DynamicShadow:Enable(true)
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "sharkboi_fin_start",
+		tags = { "fin", "moving", "running","autopredict", "canrotate", "nosleep", "noattack", "noelectrocute","epic" },
+
+		onenter = function(inst)
+			inst.components.locomotor:RunForward()
+			inst.AnimState:PlayAnimation("fin_pre")
+			if not inst.SoundEmitter:PlayingSound("loop") then
+				inst.SoundEmitter:PlaySound("meta3/sharkboi/movement_thru_ice", "loop")
+			end
+            inst.Physics:SetCollisionMask(COLLISION.WORLD)
+            inst.DynamicShadow:Enable(false)
+		end,
+
+		timeline =
+		{
+            FrameEvent(2, function (inst)
+                sharkboi:SpawnIcePlowFX(inst)
+                sharkboi:SpawnIceTrailFX(inst)
+            end),
+			FrameEvent(4, function(inst)
+                sharkboi:DoFinWork(inst)
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg.statemem.fin = true
+					inst.sg:GoToState("sharkboi_fin")
+				end
+			end),
+		},
+
+		onexit = function(inst)
+			if not inst.sg.statemem.fin then
+				inst.SoundEmitter:KillSound("loop")
+			end
+            inst.Physics:SetCollisionMask(
+                COLLISION.WORLD,
+                COLLISION.OBSTACLES,
+                COLLISION.CHARACTERS,
+                COLLISION.GIANTS
+            )
+            inst.DynamicShadow:Enable(true)
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "sharkboi_fin",
+		tags = { "fin", "moving", "running", "autopredict", "canrotate", "nosleep", "noattack", "noelectrocute","epic" },
+
+		onenter = function(inst)
+			inst.components.locomotor:RunForward()
+			if not inst.AnimState:IsCurrentAnimation("fin_loop") then
+				inst.AnimState:PlayAnimation("fin_loop", true)
+			end
+			if not inst.SoundEmitter:PlayingSound("loop") then
+				inst.SoundEmitter:PlaySound("meta3/sharkboi/movement_thru_ice", "loop")
+			end
+			inst.sg:SetTimeout(inst.AnimState:GetCurrentAnimationLength())
+            inst.Physics:SetCollisionMask(COLLISION.WORLD)
+            inst.DynamicShadow:Enable(false)
+		end,
+
+		timeline =
+		{
+            FrameEvent(0, function (inst)
+                sharkboi:SpawnIceTrailFX(inst)
+                sharkboi:DoFinWork(inst)
+            end),
+            FrameEvent(3, function (inst)
+                sharkboi:SpawnIcePlowFX(inst)
+                sharkboi:DoFinWork(inst)
+            end),
+            FrameEvent(4, function (inst)
+                sharkboi:SpawnIceTrailFX(inst)
+            end),
+            FrameEvent(6, function (inst)
+                sharkboi:DoFinWork(inst)
+            end),
+            FrameEvent(9, function (inst)
+                sharkboi:SpawnIceTrailFX(inst)
+                sharkboi:DoFinWork(inst)
+            end),
+            FrameEvent(12, function (inst)
+                sharkboi:SpawnIcePlowFX(inst)
+                sharkboi:DoFinWork(inst)
+            end),
+            FrameEvent(13, function (inst)
+                sharkboi:SpawnIceTrailFX(inst)
+            end),
+            FrameEvent(15, function (inst)
+                sharkboi:DoFinWork(inst)
+            end),
+            FrameEvent(18, function (inst)
+                sharkboi:SpawnIceTrailFX(inst)
+                sharkboi:DoFinWork(inst)
+            end),
+            FrameEvent(21, function (inst)
+                sharkboi:SpawnIcePlowFX(inst)
+                sharkboi:DoFinWork(inst)
+            end),
+            FrameEvent(22, function (inst)
+                sharkboi:SpawnIceTrailFX(inst)
+            end),
+			FrameEvent(24, function (inst)
+                sharkboi:DoFinWork(inst)
+            end),
+		},
+
+		ontimeout = function(inst)
+			inst.sg.statemem.fin = true
+			inst.sg:GoToState("sharkboi_fin")
+		end,
+
+		onexit = function(inst)
+			if not inst.sg.statemem.fin then
+				inst.SoundEmitter:KillSound("loop")
+			end
+            inst.Physics:SetCollisionMask(
+                COLLISION.WORLD,
+                COLLISION.OBSTACLES,
+                COLLISION.CHARACTERS,
+                COLLISION.GIANTS
+            )
+            inst.DynamicShadow:Enable(true)
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "sharkboi_fin_stop",
+		tags = { "fin", "canrotate", "autopredict","nosleep", "noattack", "noelectrocute","epic" },
+
+		onenter = function(inst)
+			inst.components.locomotor:RunForward()
+			inst.AnimState:PlayAnimation("fin_pst")
+			if not inst.SoundEmitter:PlayingSound("loop") then
+				inst.SoundEmitter:PlaySound("meta3/sharkboi/movement_thru_ice", "loop")
+			end
+			sharkboi:SpawnIceTrailFX(inst)
+            inst.Physics:SetCollisionMask(COLLISION.WORLD)
+            inst.DynamicShadow:Enable(false)
+		end,
+
+		timeline =
+		{
+			FrameEvent(5, function(inst)
+				inst.SoundEmitter:KillSound("loop")
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg:GoToState("sharkboi_fin_idle")
+				end
+			end),
+		},
+
+		onexit = function(inst)
+			inst.components.locomotor:StopMoving()
+			inst.SoundEmitter:KillSound("loop")
+            inst.Physics:SetCollisionMask(
+                COLLISION.WORLD,
+                COLLISION.OBSTACLES,
+                COLLISION.CHARACTERS,
+                COLLISION.GIANTS
+            )
+            inst.DynamicShadow:Enable(true)
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "vpg_spin_pre",
+		tags = { "busy","epic","epic_skill" },
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+			inst.AnimState:PlayAnimation("spin_pre")
+            local buffaction = inst:GetBufferedAction()
+            if buffaction then
+				if buffaction.pos then
+					inst:ForceFacePoint(buffaction:GetActionPoint():Get())
+					inst._facepoint_x,inst._facepoint_y,inst._facepoint_z = buffaction:GetActionPoint():Get()
+                elseif buffaction.target and buffaction.target:IsValid() then
+                    local x, y, z = buffaction.target.Transform:GetWorldPosition()
+                    inst:ForceFacePoint(x, y, z)
+                    inst._facepoint_x, inst._facepoint_y, inst._facepoint_z = x, y, z
+                    inst.sg.statemem.target = buffaction.target
+                end
+                inst.sg.statemem.targetpos = Vector3(inst._facepoint_x, inst._facepoint_y, inst._facepoint_z)
+			end
+            inst:PerformBufferedAction()
+		end,
+
+		timeline =
+		{
+			--#SFX
+			FrameEvent(0, function(inst) inst.SoundEmitter:PlaySound("rifts7/pillar_guard/voice_lariat_pre") end),
+			FrameEvent(3, function(inst) inst.SoundEmitter:PlaySound("dontstarve/common/together/rocks/hit", nil, 0.3) end),
+			FrameEvent(7, function(inst) inst.SoundEmitter:PlaySound("daywalker/pillar/hit", nil, 0.6) end),
+			FrameEvent(7, function(inst) inst.SoundEmitter:PlaySound("dontstarve/common/together/atrium/retract", nil, 0.3) end),
+			FrameEvent(11, function(inst) inst.SoundEmitter:PlaySound("dontstarve/common/together/rocks/move", nil, 0.4) end),
+			FrameEvent(12, function(inst) inst.SoundEmitter:PlaySound("dontstarve/common/together/rocks/hit", nil, 0.5) end),
+			FrameEvent(21, function(inst) inst.SoundEmitter:PlaySound("dontstarve/common/together/rocks/move", nil, 0.5) end),
+			FrameEvent(24, function(inst) inst.SoundEmitter:PlaySound("rifts7/pillar_guard/voice_lariat_spin") end),
+
+			FrameEvent(5, function (inst)
+                vpg:Shake_Med(inst)
+            end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg:GoToState("vpg_spin_loop", { loops = 3 })
+				end
+			end),
+		},
+
+		onexit = function(inst)
+			
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "vpg_spin_loop",
+		tags = { "busy","epic","epic_skill" ,"nopredict" },
+
+		onenter = function(inst, data)
+			inst.components.locomotor:Stop()
+			if not inst.AnimState:IsCurrentAnimation("spin_loop") then
+				inst.AnimState:PlayAnimation("spin_loop", true)
+			end
+			inst.sg:SetTimeout(inst.AnimState:GetCurrentAnimationLength())
+			inst.sg.statemem.targets = {}
+			inst.sg.statemem.loops = data and data.loops or 0
+		end,
+
+		onupdate = function (inst,dt)
+            vpg:DoSpinAOE(inst,dt)
+        end,
+
+		ontimeout = function(inst)
+			if inst.sg.statemem.loops > 1 then
+				inst.sg:GoToState("vpg_spin_loop", {
+					loops = inst.sg.statemem.loops - 1
+				})
+			else
+				inst.sg:GoToState("vpg_spin_pst")
+			end
+		end,
+
+		onexit = function(inst)
+			
+		end,
+	})
+
+AddStategraphState("wilson",State{
+		name = "vpg_spin_pst",
+		tags = { "busy","epic","epic_skill" ,"nopredict" },
+
+		onenter = function(inst)
+			inst.components.locomotor:Stop()
+			inst.AnimState:PlayAnimation("spin_pst")
+		end,
+
+		timeline =
+		{
+			--#SFX
+			FrameEvent(12, function(inst) inst.SoundEmitter:PlaySound("dontstarve/common/together/atrium/retract", nil, 0.3) end),
+			FrameEvent(20, function(inst) inst.SoundEmitter:PlaySound("dontstarve/common/together/rocks/move", nil, 0.5) end),
+			FrameEvent(22, function(inst) inst.SoundEmitter:PlaySound("daywalker/pillar/hit", nil,0.8) end),
+			FrameEvent(24, function(inst) inst.SoundEmitter:PlaySound("dontstarve/common/together/rocks/hit", nil, 0.6) end),
+
+			FrameEvent(11, function (inst)
+                vpg:Shake_Lift(inst)
+            end),
+			FrameEvent(19, function (inst)
+                vpg:DoSmallstep(inst)
+            end),
+			FrameEvent(20, function(inst)
+				inst.sg:AddStateTag("caninterrupt")
+			end),
+			FrameEvent(23, function(inst)
+				inst.sg:RemoveStateTag("busy")
+			end),
+		},
+
+		events =
+		{
+			EventHandler("animover", function(inst)
+				if inst.AnimState:AnimDone() then
+					inst.sg:GoToState("epic_idle")
+				end
+			end),
+		},
+
+		onexit = function(inst)
+
+		end,
+	})
+
+AddStategraphState("wilson",State{
+        name = "klaus_command_pre",
+        tags = { "busy", "epic","epic_skill" },
+
+        onenter = function(inst)
+            inst.sg.statemem.deer = klaus:PickCommandDeer(inst, nil, inst.sg.mem.last_command_deer)
+            inst.components.locomotor:StopMoving()
+            inst.AnimState:PlayAnimation("command_pre")
+            klaus:DoFoleySounds(inst, .5)
+            inst:PerformBufferedAction()
+        end,
+
+        timeline =
+        {
+            TimeEvent(8 * FRAMES, function (inst)
+                klaus:DoFoleySounds(inst)
+            end),
+        },
+
+        events =
+        {
+            EventHandler("animover", function(inst)
+                if inst.AnimState:AnimDone() then
+                    local deer = klaus:PickCommandDeer(inst, inst.sg.statemem.deer)
+                    if deer ~= nil then
+                        inst.sg.mem.last_command_deer = deer
+                        deer:PushEvent("deercast")
+                    end
+                    inst.sg:GoToState("klaus_command_loop", deer)
+                end
+            end),
+        },
+    })
+
+AddStategraphState("wilson",State{
+        name = "klaus_command_loop",
+        tags = { "busy","epic","epic_skill" ,"nopredict" },
+
+        onenter = function(inst, deer)
+            inst.sg.statemem.deer = deer
+            inst.components.locomotor:StopMoving()
+            if not inst.AnimState:IsCurrentAnimation("command_loop") then
+                inst.AnimState:PlayAnimation("command_loop", true)
+            end
+            inst.sg:SetTimeout(inst.AnimState:GetCurrentAnimationLength())
+        end,
+
+        timeline =
+        {
+            TimeEvent(7 * FRAMES, function(inst)
+                klaus:DoFoleySounds(inst, .3)
+            end),
+        },
+
+        ontimeout = function(inst)
+            local deer = inst.sg.statemem.deer
+            if deer ~= nil and deer:IsValid() and inst.components.commander:IsSoldier(deer) and deer.sg ~= nil then
+                if deer.sg:HasStateTag("casting") then
+                    inst.sg.statemem.commanding = true
+                    inst.sg:GoToState("klaus_command_loop", deer)
+                    return
+                elseif deer.sg.mem.wantstocast then
+                    if deer.sg:HasStateTag("attack") or deer.sg:HasStateTag("hit") then
+                        inst.sg.statemem.commanding = true
+                        inst.sg:GoToState("klaus_command_loop", deer)
+                        return
+                    end
+                    deer.sg.mem.wantstocast = nil
+                end
+            end
+            inst.sg:GoToState("klaus_command_pst")
+        end
+    })
+
+AddStategraphState("wilson",State{
+        name = "klaus_command_pst",
+        tags = { "busy","epic","epic_skill" ,"nopredict" },
+
+        onenter = function(inst)
+            inst.components.locomotor:StopMoving()
+            inst.AnimState:PlayAnimation("command_pst")
+        end,
+
+        timeline =
+        {
+            TimeEvent(3 * FRAMES, function (inst)
+                klaus:DoFoleySounds(inst)
+            end),
+            TimeEvent(10 * FRAMES, function(inst)
+                inst.sg:RemoveStateTag("busy")
+            end),
+        },
+
+        events =
+        {
+            EventHandler("animover", function(inst)
+                if inst.AnimState:AnimDone() then
+                    inst.sg:GoToState("epic_idle")
+                end
+            end),
+        },
+    })
+
+AddStategraphState("wilson",State{
+        name = "klaus_transition",
+		tags = { "transition", "busy", "nosleep", "nofreeze", "noelectrocute","epic","epic_skill","pausepredict","klaus_transition" },
+
+        onenter = function(inst)
+            inst.components.locomotor:StopMoving()
+            inst.AnimState:PlayAnimation("transform_pre")
+            if inst:HasTag("klaus_angery") then
+                inst.sg:AddStateTag("transition_angery")
+            else
+                klaus:SummonHelpers(inst)
+            end
+            if inst.components.playercontroller then
+                inst.components.playercontroller:RemotePausePrediction()
+            end
+        end,
+
+        timeline =
+        {
+            TimeEvent(6 * FRAMES, function (inst)
+                klaus:DoFoleySounds(inst)
+            end),
+            TimeEvent(9 * FRAMES, function (inst)
+                klaus:DoBodyfall(inst)
+            end),
+        },
+
+        events =
+        {
+            EventHandler("animover", function(inst)
+                if inst.AnimState:AnimDone() then
+                    inst.sg:GoToState("klaus_transition_loop")
+                end
+            end),
+        },
+    })
+
+AddStategraphState("wilson",State{
+        name = "klaus_transition_loop",
+		tags = { "transition", "busy", "nosleep", "nofreeze", "noelectrocute","epic","epic_skill","pausepredict","klaus_transition" },
+
+        onenter = function(inst, transition)
+            if not inst.AnimState:IsCurrentAnimation("transform_loop") then
+                inst.AnimState:PlayAnimation("transform_loop", true)
+            end
+            if inst:HasTag("klaus_angery") then
+                inst.sg:AddStateTag("transition_angery")
+            end
+            inst.sg:SetTimeout(inst.AnimState:GetCurrentAnimationLength())
+        end,
+
+        timeline =
+        {
+            TimeEvent(16 * FRAMES, function (inst)
+                klaus:DoFoleySounds(inst)
+            end),
+            TimeEvent(29 * FRAMES, function(inst)
+                klaus:DoFoleySounds(inst, .6)
+            end),
+        },
+
+        ontimeout = function(inst)
+            inst.sg:GoToState(
+                inst:HasTag("klaus_angery") and "klaus_transition_enrage" or
+                "klaus_transition_pst"
+            )
+        end,
+    })
+
+AddStategraphState("wilson",State{
+        name = "klaus_transition_pst",
+		tags = { "busy", "nosleep", "nofreeze", "noelectrocute","epic","epic_skill","pausepredict","klaus_transition" },
+
+        onenter = function(inst)
+            inst.AnimState:PlayAnimation("transform_pst2")
+        end,
+
+        timeline =
+        {
+            TimeEvent(0, function(inst)
+                klaus:DoFoleySounds(inst, .4)
+            end),
+            TimeEvent(7 * FRAMES, function(inst)
+                klaus:DoFootstep(inst, .5)
+            end),
+        },
+
+        events =
+        {
+            EventHandler("animover", function(inst)
+                if inst.AnimState:AnimDone() then
+                    inst.sg:GoToState("klaus_laugh_pre")
+                end
+            end),
+        },
+    })
+
+AddStategraphState("wilson",State{
+        name = "klaus_transition_enrage",
+		tags = { "enrage", "busy", "nosleep", "nofreeze", "noelectrocute","epic","epic_skill","pausepredict","transition_angery" },
+
+        onenter = function(inst)
+            inst.AnimState:PlayAnimation("transform_pst")
+        end,
+
+        timeline =
+        {
+            TimeEvent(FRAMES, function (inst)
+                klaus:DoFoleySounds(inst)
+            end),
+            TimeEvent(5 * FRAMES, function(inst)
+                inst.SoundEmitter:PlaySound("dontstarve/common/rebirth_amulet_poof")
+                klaus:Enrage(inst,true)
+                klaus:DoFootstep(inst, .5)
+            end),
+            TimeEvent(6 * FRAMES, function (inst)
+                klaus:DoFoleySounds(inst)
+            end),
+            TimeEvent(25 * FRAMES, function(inst)
+                inst.sg:RemoveStateTag("busy")
+                inst.sg:RemoveStateTag("nosleep")
+                inst.sg:RemoveStateTag("nofreeze")
+				inst.sg:RemoveStateTag("noelectrocute")
+            end),
+        },
+
+        events =
+        {
+            EventHandler("animover", function(inst)
+                if inst.AnimState:AnimDone() then
+                    inst.sg:GoToState("epic_idle")
+                end
+            end),
+        },
+
+        onexit = function(inst)
+            klaus:Enrage(inst,true)
+        end,
+    })
+
+AddStategraphState("wilson",State{
+        name = "klaus_laugh_pre",
+        tags = { "busy","epic","epic_skill","pausepredict","laugh" },
+
+        onenter = function(inst)
+            inst.components.locomotor:StopMoving()
+            inst.AnimState:PlayAnimation("lol_pre")
+            inst.sg.statemem.laugn_num = 3
+        end,
+
+        timeline =
+        {
+            TimeEvent(FRAMES, function(inst)
+                klaus:DoFoleySounds(inst, .3)
+            end),
+        },
+
+        events =
+        {
+            EventHandler("animover", function(inst)
+                inst.sg:GoToState("klaus_laugh_loop",inst.sg.statemem.laugn_num)
+            end),
+        }
+    })
+
+AddStategraphState("wilson",State{
+        name = "klaus_laugh_loop",
+        tags = { "busy","epic","epic_skill","pausepredict","laugh" },
+
+        onenter = function(inst,num)
+            inst.components.locomotor:StopMoving()
+            if not inst.AnimState:IsCurrentAnimation("lol_loop") then
+                inst.AnimState:PlayAnimation("lol_loop", true)
+            end
+            inst.sg:SetTimeout(inst.AnimState:GetCurrentAnimationLength())
+            inst.SoundEmitter:PlaySound("dontstarve/creatures/together/klaus/lol")
+            inst.sg.statemem.laugh_num = num
+            klaus:DoRoarAlert(inst)
+        end,
+
+        timeline =
+        {
+            TimeEvent(0, function (inst)
+                klaus:DoFoleySounds(inst)
+            end),
+            TimeEvent(13 * FRAMES, function(inst)
+                klaus:DoFoleySounds(inst, .7)
+                klaus:DoRoarAlert(inst)
+            end),
+        },
+
+        ontimeout = function(inst)
+            inst.sg.statemem.laugh_num = inst.sg.statemem.laugh_num - 1
+            inst.sg:GoToState(inst.sg.statemem.laugh_num > 0 and "klaus_laugh_loop" or "klaus_laugh_pst",inst.sg.statemem.laugh_num)
+        end
+    })
+
+AddStategraphState("wilson",State{
+        name = "klaus_laugh_pst",
+        tags = { "busy", "caninterrupt","epic","epic_skill","pausepredict","laugh" },
+
+        onenter = function(inst)
+            inst.components.locomotor:StopMoving()
+            inst.AnimState:PlayAnimation("lol_pst")
+        end,
+
+        timeline =
+        {
+            TimeEvent(5 * FRAMES, function(inst)
+                inst.sg:RemoveStateTag("busy")
+            end),
+        },
+
+        events =
+        {
+            EventHandler("animover", function(inst)
+                if inst.AnimState:AnimDone() then
+                    inst.sg:GoToState("epic_idle")
+                end
+            end),
+        },
+    })
+
+AddStategraphState("wilson",State{
+        name = "klaus_attack_chomp",
+        tags = { "busy", "nosleep", "nofreeze","epic","epic_skill" },
+
+        onenter = function(inst)
+            inst.components.locomotor:StopMoving()
+            inst.AnimState:PlayAnimation("attack_chomp")
+            local buffaction = inst:GetBufferedAction()
+            if buffaction then
+				if buffaction.pos then
+                    local x, y, z = buffaction:GetActionPoint():Get()
+					inst:ForceFacePoint(x,y,z)
+                    inst.sg.statemem.speed = klaus:CalcChompSpeed(inst, nil, x,y,z)
+                elseif buffaction.target and buffaction.target:IsValid() then
+                    local x, y, z = buffaction.target.Transform:GetWorldPosition()
+                    inst:ForceFacePoint(x, y, z)
+                    inst.sg.statemem.target = buffaction.target
+                end
+			end
+            if inst.sg.statemem.target ~= nil then
+                inst.sg.statemem.speed = klaus:CalcChompSpeed(inst, inst.sg.statemem.target)
+            end
+            inst:RemoveTag("klaus_attack_chomp")
+            inst:PerformBufferedAction()
+        end,
+
+        onupdate = function(inst)
+            if inst.sg.statemem.jump then
+                inst.Physics:SetMotorVel(inst.sg.statemem.speed, 0, 0)
+            end
+        end,
+
+        timeline =
+        {
+            TimeEvent(2 * FRAMES, function(inst)
+                inst.SoundEmitter:PlaySound("dontstarve/creatures/together/klaus/attack_3", nil, not inst.enraged and .8 or nil)
+            end),
+            TimeEvent(6 * FRAMES, function (inst)
+                klaus:DoChompShake(inst)
+            end),
+            TimeEvent(7 * FRAMES, function (inst)
+                klaus:DoRoarAlert(inst)
+            end),
+            TimeEvent(26 * FRAMES, function(inst)
+                if inst.sg.statemem.target ~= nil and inst.sg.statemem.target:IsValid() then
+                    --update in case target moved, if target still exists
+                    inst.sg.statemem.speed = klaus:CalcChompSpeed(inst, inst.sg.statemem.target)
+                end
+                if (inst.sg.statemem.speed or 0) > 0 then
+                    inst.sg.statemem.jump = true
+                    inst.components.locomotor:EnableGroundSpeedMultiplier(false)
+                end
+            end),
+            TimeEvent(33 * FRAMES, function(inst)
+                inst.SoundEmitter:PlaySound("dontstarve/creatures/together/klaus/bite")
+            end),
+            TimeEvent(34 * FRAMES, function (inst)
+                klaus:DoLanding(inst)
+            end),
+            TimeEvent(35 * FRAMES, function(inst)
+                if inst.sg.statemem.target ~= nil then
+                    inst.components.combat:DoAttack(inst.sg.statemem.target)
+                else
+                    local target = FindEntity(inst,5,function (guy)
+                        return inst.components.combat:CanTarget(guy)
+                    end,AOE_TARGET_MUSTHAVE_TAGS,AOE_TARGET_CANT_TAGS)
+                    inst.components.combat:DoAttack(target)
+                end
+            end),
+            TimeEvent(36 * FRAMES, function(inst)
+                if inst.sg.statemem.jump then
+                    inst.sg.statemem.jump = nil
+                    inst.components.locomotor:Stop()
+                    inst.components.locomotor:EnableGroundSpeedMultiplier(true)
+                end
+            end),
+            TimeEvent(49 * FRAMES, function(inst)
+                inst.sg:RemoveStateTag("busy")
+                inst.sg:RemoveStateTag("nosleep")
+                inst.sg:RemoveStateTag("nofreeze")
+            end),
+        },
+
+        events =
+        {
+            EventHandler("animover", function(inst)
+                if inst.AnimState:AnimDone() then
+                    inst.sg:GoToState("epic_idle")
+                end
+            end),
+        },
+
+        onexit = function(inst)
+            if inst.sg.statemem.jump then
+                inst.sg.statemem.jump = nil
+                inst.components.locomotor:Stop()
+                inst.components.locomotor:EnableGroundSpeedMultiplier(true)
+            end
+        end,
+    })
+
 AddStategraphPostInit("wilson", function(sg)
 ---actionhandlers
 ---ATTACK
     local old_attack_handler_deststate = sg.actionhandlers[ACTIONS.ATTACK].deststate
     sg.actionhandlers[ACTIONS.ATTACK].deststate = function(inst, action)
         if inst:HasTag("epic") then
+            local mode = inst.components.wereepic and inst.components.wereepic:GetEpicMode()
             inst.sg.mem.localchainattack = not action.forced or nil
 			local playercontroller = inst.components.playercontroller
 			local attack_tag =
@@ -3768,7 +5661,7 @@ AddStategraphPostInit("wilson", function(sg)
 				"abouttoattack" or
 				"attack"
 			if not (inst.sg:HasStateTag(attack_tag) and action.target == inst.sg.statemem.attacktarget or inst.components.health:IsDead()) then
-                return "epic_attack"
+                return EPIC_SHOWDOWN_TUNING.EPIC_ATTACK[mode] or "epic_attack"
             end
         else
             return old_attack_handler_deststate(inst, action)
@@ -3781,7 +5674,7 @@ AddStategraphPostInit("wilson", function(sg)
     sg.events.blocked.fn = function(inst, data)
         if inst:HasTag("epic") then
             if inst.components.health and not inst.components.health:IsDead() and inst.sg:HasStateTag("epic")
-            and not inst.sg:HasAnyStateTag("busy","epic_skill","attack")
+            and not inst.sg:HasAnyStateTag("busy","epic_skill","attack","epic_attack")
             then
                 inst.sg:GoToState("epic_hit")
             else
@@ -3806,6 +5699,27 @@ AddStategraphPostInit("wilson", function(sg)
                             fx.AnimState:SetScale(-2.36, 2.36, 2.36)
                         end
                     end
+                    if not inst.sg:HasAnyStateTag("busy","epic_skill","attack","epic_attack") then
+                        local t = GetTime()
+                        local stunlock =
+                            data.attacker ~= nil and
+                            data.attacker.components.combat ~= nil and
+                            (data.attacker.components.combat.playerstunlock or PLAYERSTUNLOCK.SOMETIMES ) or
+                            nil
+                        if stunlock ~= nil and
+                            t - (inst.sg.mem.laststuntime or 0) <
+                            (   (stunlock == PLAYERSTUNLOCK.NEVER and math.huge) or
+                                (stunlock == PLAYERSTUNLOCK.RARELY and TUNING.STUNLOCK_TIMES.RARELY) or
+                                (stunlock == PLAYERSTUNLOCK.SOMETIMES and TUNING.STUNLOCK_TIMES.SOMETIMES) or 1
+                            ) then
+                            -- don't go to full hit state, just play sounds
+                            inst.SoundEmitter:PlaySound("dontstarve/wilson/hit")
+                            DoHurtSound(inst)
+                        else
+                            inst.sg.mem.laststuntime = t
+                            inst.sg:GoToState("epic_hit")
+                        end
+                    end
                 elseif inst.sg:HasStateTag("shield") then
                     inst.sg:GoToState("phase1_shield_hit")
                 elseif data.weapon ~= nil and data.weapon:HasTag("tranquilizer") and inst.sg:HasAnyStateTag("bedroll", "knockout") then
@@ -3813,7 +5727,8 @@ AddStategraphPostInit("wilson", function(sg)
                 elseif inst.sg:HasStateTag("hitwakeup") then
                     inst.sg:GoToState("epic_hit")
                 elseif inst.sg:HasStateTag("sleeping") then
-                    inst.sg:GoToState("epic_wakeup")
+                    local mode = inst.components.wereepic and inst.components.wereepic:GetEpicMode()
+                    inst.sg:GoToState(EPIC_SHOWDOWN_TUNING.EPIC_WAKEUP[mode] or "epic_wakeup")
                 elseif inst.sg:HasStateTag("nointerrupt") then
                     if data.stimuli == "electric" and not inst.components.inventory:IsInsulated() and inst.sg:HasStateTag("canelectrocute") then
                         inst.sg:GoToState("epic_electrocute", { attackdata = data })
@@ -3828,28 +5743,25 @@ AddStategraphPostInit("wilson", function(sg)
                 elseif inst.sg:HasStateTag("electrocute") then
                     inst.SoundEmitter:PlaySound("dontstarve/wilson/hit")
                     DoHurtSound(inst)
-                elseif not inst.sg:HasAnyStateTag("busy","epic_skill","attack")
+                elseif not inst.sg:HasAnyStateTag("busy","epic_skill","attack","epic_attack")
                 and inst.sg:HasStateTag("epic") then
                     local t = GetTime()
                     local stunlock =
-                        data.stimuli ~= "stun" and
                         data.attacker ~= nil and
-                        not (inst.sg:HasStateTag("idle") and inst.sg.timeinstate > 0) and
                         data.attacker.components.combat ~= nil and
-                        data.attacker.components.combat.playerstunlock or
+                        (data.attacker.components.combat.playerstunlock or PLAYERSTUNLOCK.SOMETIMES ) or
                         nil
                     if stunlock ~= nil and
                         t - (inst.sg.mem.laststuntime or 0) <
                         (   (stunlock == PLAYERSTUNLOCK.NEVER and math.huge) or
                             (stunlock == PLAYERSTUNLOCK.RARELY and TUNING.STUNLOCK_TIMES.RARELY) or
-                            (stunlock == PLAYERSTUNLOCK.SOMETIMES and TUNING.STUNLOCK_TIMES.SOMETIMES) or
-                            (stunlock == PLAYERSTUNLOCK.OFTEN and TUNING.STUNLOCK_TIMES.OFTEN) or
-                            0
+                            (stunlock == PLAYERSTUNLOCK.SOMETIMES and TUNING.STUNLOCK_TIMES.SOMETIMES) or 1
                         ) then
                         -- don't go to full hit state, just play sounds
                         inst.SoundEmitter:PlaySound("dontstarve/wilson/hit")
                         DoHurtSound(inst)
                     else
+                        inst.sg.mem.laststuntime = t
                         inst.sg:GoToState("epic_hit")
                     end
                 end
@@ -3888,10 +5800,11 @@ AddStategraphPostInit("wilson", function(sg)
                 if inst.sg:HasStateTag("knockout") then
                     inst.sg.statemem.cometo = nil
                 elseif not (inst.sg:HasStateTag("sleeping") or inst.sg:HasStateTag("bedroll") or inst.sg:HasStateTag("tent") or inst.sg:HasStateTag("drowning") or inst.sg:HasStateTag("falling")) then
+                    local mode = inst.components.wereepic and inst.components.wereepic:GetEpicMode()
                     if inst.sg:HasStateTag("jumping") then
-                        inst.sg.statemem.queued_post_land_state = "epic_knockout"
+                        inst.sg.statemem.queued_post_land_state = EPIC_SHOWDOWN_TUNING.EPIC_KNOCKOUT[mode] or "epic_knockout"
                     else
-                        inst.sg:GoToState("epic_knockout")
+                        inst.sg:GoToState(EPIC_SHOWDOWN_TUNING.EPIC_KNOCKOUT[mode] or "epic_knockout")
                     end
                 end
             end
@@ -3910,7 +5823,8 @@ AddStategraphPostInit("wilson", function(sg)
                         inst.sg:HasStateTag("sleeping") or
                         (inst.components.freezable ~= nil and inst.components.freezable:IsFrozen()) or
                         (inst.components.pinnable ~= nil and inst.components.pinnable:IsStuck())) then
-                    inst.sg:GoToState("epic_knockout",{source = "yawn"})
+                    local mode = inst.components.wereepic and inst.components.wereepic:GetEpicMode()
+                    inst.sg:GoToState(EPIC_SHOWDOWN_TUNING.EPIC_KNOCKOUT[mode] or "epic_knockout",{source = "yawn"})
                 end
             end
         else
@@ -3925,7 +5839,7 @@ AddStategraphPostInit("wilson", function(sg)
             if mode=="stalker_atrium" then
                 inst.sg:GoToState("stalker_atrium_death_pre",data)
             else
-                inst.sg:GoToState("epic_death",data)
+                inst.sg:GoToState(EPIC_SHOWDOWN_TUNING.EPIC_DEATH[mode] or "epic_death",data)
             end
         else
             return old_death_fn(inst,data)
@@ -4152,6 +6066,15 @@ sg.events.monkeycursehit.fn = function (inst,data)
     end
 end
 
+local old_recoil_off_fn = sg.events.recoil_off.fn
+sg.events.recoil_off.fn = function (inst,data)
+    if inst:HasTag("epic") then
+        return
+    else
+        return old_recoil_off_fn(inst,data)
+    end
+end
+
 ---locomote
     local old_locomote_fn = sg.events.locomote.fn
     sg.events.locomote.fn = function(inst, data)
@@ -4160,14 +6083,23 @@ end
         end
         local is_moving = inst.sg:HasStateTag("moving")
         local should_move = inst.components.locomotor:WantsToMoveForward()
+        local mode = inst.components.wereepic and inst.components.wereepic:GetEpicMode()
 
         if is_moving and not should_move and inst:HasTag("epic") then
-            inst.sg:GoToState("epic_walk_stop")
+            if inst:HasTag("sharkboi_fin") then
+                inst.sg:GoToState("sharkboi_fin_stop")
+            else
+                inst.sg:GoToState(EPIC_SHOWDOWN_TUNING.EPIC_WALK_STOP[mode] or "epic_walk_stop")
+            end
         elseif not is_moving and should_move and inst:HasTag("epic") then
 			if data and data.dir then
 				inst.components.locomotor:SetMoveDir(data.dir)
 			end
-            inst.sg:GoToState("epic_walk_start")
+            if inst:HasTag("sharkboi_fin") then
+                inst.sg:GoToState("sharkboi_fin_start")
+            else
+                inst.sg:GoToState(EPIC_SHOWDOWN_TUNING.EPIC_WALK_START[mode] or "epic_walk_start")
+            end
         else
             return old_locomote_fn(inst,data)
         end
@@ -4178,23 +6110,29 @@ end
     local epic_death_state = sg.states["epic_death"]
     local old_epic_death_fn = epic_death_state.events.animover.fn
     epic_death_state.events.animover.fn = function (inst)
-        local data = inst.sg.statemem.epicdeathdata
-        if inst.components.wereepic then
-            inst.components.wereepic:OnBecameHuman()
-        end
-        if data then
-            return old_death_fn(inst,data)
-        else
-            if inst.sg.statemem.epicmode~="stalker_atrium" and inst.sg.statemem.epicmode~="ancient_hulk" then
-                local corpse = SpawnPrefab("epic_"..inst.sg.statemem.epicmode.."_corpse")
-                local x,y,z = inst.Transform:GetWorldPosition()
-                corpse.Transform:SetPosition(x,y,z)
-                if inst.sg.statemem.epicmode=="malbatross" and not inst:IsOnPassablePoint()  then
-                    corpse.AnimState:PlayAnimation("death_ocean_idle",true)
+        if inst.AnimState:AnimDone() then
+            local data = inst.sg.statemem.epicdeathdata
+            if data and inst:HasTag("epic_nextmode") then
+                inst:RemoveTag("epic_nextmode")
+                inst.sg:GoToState("epic_transform_newmode",{newmode = data.epic_nextmode})
+            else
+                inst.components.wereepic:OnBecameHuman()
+                if data then
+                    inst.components.inventory:Close()
+                    return old_death_fn(inst,data)
+                else
+                    if inst.sg.statemem.epicmode~="stalker_atrium" and inst.sg.statemem.epicmode~="ancient_hulk" and inst.sg.statemem.epicmode~="vault_pillar_guard" then
+                        local corpse = SpawnPrefab("epic_"..inst.sg.statemem.epicmode.."_corpse")
+                        local x,y,z = inst.Transform:GetWorldPosition()
+                        corpse.Transform:SetPosition(x,y,z)
+                        if inst.sg.statemem.epicmode=="malbatross" and not inst:IsOnPassablePoint()  then
+                            corpse.AnimState:PlayAnimation("death_ocean_idle",true)
+                        end
+                        inst._epic_corpse = corpse
+                    end
+                    inst.sg:GoToState("epic_gravestone_rebirth")
                 end
-                inst._epic_corpse = corpse
             end
-            inst.sg:GoToState("epic_gravestone_rebirth")
         end
     end
 end)

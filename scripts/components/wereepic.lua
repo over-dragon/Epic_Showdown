@@ -34,7 +34,19 @@ local function HugeFreezableCharacter(inst, sym, offset)
     if freezable then
         freezable:SetShatterFXLevel(5)
         freezable:SetResistance(4)
-        freezable:AddShatterFX(shatterfx.character, offset or Vector3(0, 0, 0), sym)
+        local found = nil
+        if freezable.fxdata then
+            for i, v in ipairs(freezable.fxdata) do
+                if v.prefab == shatterfx.character then
+                    v.follow = sym
+                    found = true
+                    break
+                end
+            end
+        end
+        if not found then
+            freezable:AddShatterFX(shatterfx.character, offset or Vector3(0, 0, 0), sym)
+        end
     else
         freezable = inst:AddComponent("freezable")
         freezable:SetShatterFXLevel(5)
@@ -76,7 +88,19 @@ local function LargeBurnableCharacter(inst, sym, offset, scale)
         burnable:SetFXLevel(3)
         burnable.canlight = false
         burnable:SetBurnTime(10)
-        burnable:AddBurnFX(burnfx.character, offset or (sym and Vector3(0, 0, 0.1) or Vector3(0, 0.1, 0)), sym, nil, scale)
+        local found = nil
+        if burnable.fxdata then
+            for i, v in ipairs(burnable.fxdata) do
+                if v.prefab == burnfx.character then
+                    v.follow = sym
+                    found = true
+                    break
+                end
+            end
+        end
+        if not found then
+            burnable:AddBurnFX(burnfx.character, offset or (sym and Vector3(0, 0, 0.1) or Vector3(0, 0.1, 0)), sym, nil, scale)
+        end
     else
         burnable = inst:AddComponent("burnable")
         burnable:SetFXLevel(3)
@@ -187,7 +211,19 @@ local function MediumBurnableCharacter(inst, sym, offset)
         burnable:SetFXLevel(2)
         burnable.canlight = false
         burnable:SetBurnTime(8)
-	    burnable:AddBurnFX(burnfx.character, offset or (sym and Vector3(0, 0, 0.1) or Vector3(0, 0.1, 0)), sym)
+        local found = nil
+        if burnable.fxdata then
+            for i, v in ipairs(burnable.fxdata) do
+                if v.prefab == burnfx.character then
+                    v.follow = sym
+                    found = true
+                    break
+                end
+            end
+        end
+        if not found then
+            burnable:AddBurnFX(burnfx.character, offset or (sym and Vector3(0, 0, 0.1) or Vector3(0, 0.1, 0)), sym)
+        end
     else
         burnable = inst:AddComponent("burnable")
         burnable:SetFXLevel(2)
@@ -206,7 +242,19 @@ local function LargeFreezableCharacter(inst, sym, offset)
     if freezable then
         freezable:SetShatterFXLevel(4)
         freezable:SetResistance(3)
-        freezable:AddShatterFX(shatterfx.character, offset or Vector3(0, 0, 0), sym)
+        local found = nil
+        if freezable.fxdata then
+            for i, v in ipairs(freezable.fxdata) do
+                if v.prefab == shatterfx.character then
+                    v.follow = sym
+                    found = true
+                    break
+                end
+            end
+        end
+        if not found then
+            freezable:AddShatterFX(shatterfx.character, offset or Vector3(0, 0, 0), sym)
+        end
     else
         freezable = inst:AddComponent("freezable")
         freezable:SetShatterFXLevel(4)
@@ -220,6 +268,9 @@ end
 local skill_names = {"taunt", "transform", "skill1", "skill2", "skill3"}
 
 function WereEpic:SetEpicMode(mode)
+    if EPIC[mode] == nil then
+        print("[wereepic] unknown epic mode:", tostring(mode))
+    end
     self.mode = mode
 end
 
@@ -232,24 +283,25 @@ function WereEpic:IsEpic()
 end
 
 function WereEpic:InitEpic()
-    if EPIC[self.mode]==nil then
+    local boss = EPIC[self.mode]
+    if boss == nil then
         return
     end
 
-    self.inst.AnimState:SetBank(EPIC[self.mode].bank)
-    self.inst.AnimState:SetBuild(EPIC[self.mode].build)
+    self.inst.AnimState:SetBankAndPlayAnimation(boss.bank,boss.initanim or "taunt")
+    self.inst.AnimState:SetBuild(boss.build)
 
-    local s = EPIC[self.mode].scale or 1
+    local s = boss.scale or 1
     self.inst.Transform:SetScale(s, s, s)
 
-    self.inst.DynamicShadow:SetSize(unpack(EPIC[self.mode].dyshadow))
+    self.inst.DynamicShadow:SetSize(unpack(boss.dyshadow))
 
-    GiantCharacterPhysics(self.inst, 1000, EPIC[self.mode].phyrad)
-    self.inst.Physics:SetCollisionCallback(EPIC[self.mode].oncollide)
+    GiantCharacterPhysics(self.inst, 1000, boss.phyrad)
+    self.inst.Physics:SetCollisionCallback(boss.oncollide)
 
     self.inst:AddTag("epic")
     self.inst:AddTag("toughworker")
-    if EPIC[self.mode].gogglevision then
+    if boss.gogglevision then
         self.inst:AddTag("epic_gogglevision")
     end
 
@@ -257,11 +309,11 @@ function WereEpic:InitEpic()
 
     self.hurtsoundoverride = self.inst.hurtsoundoverride
     self.deathsoundoverride = self.inst.deathsoundoverride
-    self.inst.hurtsoundoverride = EPIC[self.mode].hurtsoundoverride
-    self.inst.deathsoundoverride = EPIC[self.mode].deathsoundoverride
+    self.inst.hurtsoundoverride = boss.hurtsoundoverride
+    self.inst.deathsoundoverride = boss.deathsoundoverride
 
-    HugeFreezableCharacter(self.inst, EPIC[self.mode].freezable)
-    LargeBurnableCharacter(self.inst, EPIC[self.mode].burnable or "swap_fire")
+    HugeFreezableCharacter(self.inst, boss.freezable)
+    LargeBurnableCharacter(self.inst, boss.burnable or "swap_fire")
 
     if not GetGameModeProperty("no_hunger") and self.inst.components.hunger then
         self.inst.components.hunger:Pause()
@@ -272,26 +324,26 @@ function WereEpic:InitEpic()
 
     if self.inst.components.locomotor then
         self.inst.components.locomotor:SetExternalSpeedMultiplier(self.inst,"epic_scale_speed",1/s)
-        if TUNING.EPIC_WORLD.WALKSPEED_CHANGE==1 and EPIC[self.mode].walkspeed then
-            self.inst.components.locomotor.runspeed = EPIC[self.mode].walkspeed
+        if TUNING.EPIC_WORLD.WALKSPEED_CHANGE==1 and boss.walkspeed then
+            self.inst.components.locomotor.runspeed = boss.walkspeed
         end
     end
 
     if self.inst.components.health then
         self.maxhealth = self.inst.components.health.maxhealth
-        local ratio=self.inst.components.health.currenthealth/self.inst.components.health.maxhealth
-        self.inst.components.health:SetMaxHealth(EPIC[self.mode].health)
-		self.inst.components.health:SetCurrentHealth(EPIC[self.mode].health*ratio)
+        local ratio = math.min(self.inst.components.health.currenthealth/self.inst.components.health.maxhealth,1)
+        self.inst.components.health:SetMaxHealth(boss.health)
+		self.inst.components.health:SetCurrentHealth(boss.health*ratio)
 		self.inst.components.health:DoDelta(0.01,true)
-        if EPIC[self.mode].burnable_damage then
+        if boss.burnable_damage then
             self.fire_damage_scale = self.inst.components.health.fire_damage_scale
             self.inst.components.health.fire_damage_scale = 0
         end
     end
 
     if self.inst.components.combat then
-        self.inst.components.combat:SetDefaultDamage(EPIC[self.mode].damage)
-        self.inst.components.combat:SetRange(EPIC[self.mode].range)
+        self.inst.components.combat:SetDefaultDamage(boss.damage)
+        self.inst.components.combat:SetRange(boss.range)
     end
 
     if self.inst.components.talker then
@@ -301,7 +353,7 @@ function WereEpic:InitEpic()
     if self.inst.components.sanity then
         self.sanityfn = self.inst.components.sanity.custom_rate_fn or nil
         self.inst.components.sanity.custom_rate_fn = function (inst,dt)
-            if EPIC[self.mode].enablelunacy then
+            if boss.enablelunacy then
                 return -TUNING.WERE_SANITY_PENALTY*3
             else
                 return TUNING.WERE_SANITY_PENALTY*1.5
@@ -352,18 +404,19 @@ function WereEpic:InitEpic()
         self.inst.components.inventory:DropEquipped(true,true)
     end
 
-    if EPIC[self.mode].freezable_resistance and self.inst.components.freezable then
+    if boss.freezable_resistance and self.inst.components.freezable then
         self.resistance = self.inst.components.freezable.resistance
-        self.inst.components.freezable:SetResistance(EPIC[self.mode].freezable_resistance)
+        self.inst.components.freezable:SetResistance(boss.freezable_resistance)
     end
 end
 
 function WereEpic:InitHuman()
-    if self.mode=="none" then
+    local boss = EPIC[self.mode]
+    if boss == nil then
         return
     end
 
-    self.inst.AnimState:SetBank("wilson")
+    self.inst.AnimState:SetBankAndPlayAnimation("wilson", "idle_loop")
 
     self.inst.Transform:SetScale(1, 1, 1)
 
@@ -375,7 +428,7 @@ function WereEpic:InitHuman()
     self.inst:RemoveTag("epic")
     self.inst:RemoveTag("toughworker")
 
-    if EPIC[self.mode].gogglevision then
+    if boss.gogglevision then
         self.inst:RemoveTag("epic_gogglevision")
     end
     self.inst.hurtsoundoverride = self.hurtsoundoverride
@@ -432,7 +485,7 @@ function WereEpic:InitHuman()
 
     if self.inst.components.locomotor then
         self.inst.components.locomotor:RemoveExternalSpeedMultiplier(self.inst,"epic_scale_speed")
-        if TUNING.EPIC_WORLD.WALKSPEED_CHANGE==1 and EPIC[self.mode].walkspeed then
+        if TUNING.EPIC_WORLD.WALKSPEED_CHANGE==1 and boss.walkspeed then
             self.inst.components.locomotor.runspeed = 6
         end
     end
@@ -445,11 +498,11 @@ function WereEpic:InitHuman()
                 self.maxhealth = TUNING.WURT_HEALTH
             end
         end
-        local ratio=math.min(1,self.inst.components.health.currenthealth/self.inst.components.health.maxhealth)
+        local ratio = math.min(self.inst.components.health.currenthealth/self.inst.components.health.maxhealth,1)
         self.inst.components.health:SetMaxHealth(self.maxhealth)
 		self.inst.components.health:SetCurrentHealth(self.maxhealth*ratio)
 		self.inst.components.health:DoDelta(0.01,true)
-        if EPIC[self.mode].burnable_damage then
+        if boss.burnable_damage then
             self.inst.components.health.fire_damage_scale = self.fire_damage_scale
         end
     end
@@ -516,18 +569,19 @@ function WereEpic:InitHuman()
         end
     end
 
-    if EPIC[self.mode].freezable_resistance and self.inst.components.freezable then
+    if boss.freezable_resistance and self.inst.components.freezable then
         self.inst.components.freezable:SetResistance(self.resistance)
     end
 end
 
 function WereEpic:OnBecameEpic()
-    if EPIC[self.mode]==nil then
+    local boss = EPIC[self.mode]
+    if boss == nil then
         return
     end
     self:InitEpic()
-    if EPIC[self.mode].master_postinit then
-        EPIC[self.mode].master_postinit(self.inst)
+    if boss.master_postinit then
+        boss.master_postinit(self.inst)
     end
     if self.planar then
         if self.inst.components.planardamage then
@@ -540,12 +594,13 @@ function WereEpic:OnBecameEpic()
 end
 
 function WereEpic:OnBecameHuman()
-    if self.mode=="none" then
+    local boss = EPIC[self.mode]
+    if boss == nil then
         return
     end
     self:InitHuman()
-    if EPIC[self.mode].master_human then
-        EPIC[self.mode].master_human(self.inst)
+    if boss.master_human then
+        boss.master_human(self.inst)
     end
     self.mode = "none"
     SetVision(self,false)
@@ -574,6 +629,119 @@ function WereEpic:OnBecameHuman()
         end
         self.planar = false
     end
+end
+
+function WereEpic:InitTransformHuman()
+    local boss = EPIC[self.mode]
+    if boss == nil then
+        return
+    end
+
+    if boss.gogglevision then
+        self.inst:RemoveTag("epic_gogglevision")
+    end
+
+    if self.inst.components.locomotor then
+        self.inst.components.locomotor:RemoveExternalSpeedMultiplier(self.inst,"epic_scale_speed")
+        if TUNING.EPIC_WORLD.WALKSPEED_CHANGE==1 and boss.walkspeed then
+            self.inst.components.locomotor.runspeed = 6
+        end
+    end
+
+    if self.inst.components.health then
+        if boss.burnable_damage then
+            self.inst.components.health.fire_damage_scale = self.fire_damage_scale
+        end
+    end
+
+    if boss.freezable_resistance and self.inst.components.freezable then
+        self.inst.components.freezable:SetResistance(self.resistance)
+    end
+
+    if boss.master_human then
+        boss.master_human(self.inst)
+    end
+
+    SetVision(self,false)
+end
+
+function WereEpic:InitTransformEpic()
+    local boss = EPIC[self.mode]
+    if boss == nil then
+        return
+    end
+
+    self.inst.AnimState:SetBankAndPlayAnimation(boss.bank,boss.initanim or "taunt")
+    self.inst.AnimState:SetBuild(boss.build)
+
+    local s = boss.scale or 1
+    self.inst.Transform:SetScale(s, s, s)
+
+    self.inst.DynamicShadow:SetSize(unpack(boss.dyshadow))
+
+    GiantCharacterPhysics(self.inst, 1000, boss.phyrad)
+    self.inst.Physics:SetCollisionCallback(boss.oncollide)
+
+    if boss.gogglevision then
+        self.inst:AddTag("epic_gogglevision")
+    end
+
+    SetVision(self,true)
+
+    self.inst.hurtsoundoverride = boss.hurtsoundoverride
+    self.inst.deathsoundoverride = boss.deathsoundoverride
+
+    HugeFreezableCharacter(self.inst, boss.freezable)
+    LargeBurnableCharacter(self.inst, boss.burnable or "swap_fire")
+
+    if self.inst.components.locomotor then
+        self.inst.components.locomotor:SetExternalSpeedMultiplier(self.inst,"epic_scale_speed",1/s)
+        if TUNING.EPIC_WORLD.WALKSPEED_CHANGE==1 and boss.walkspeed then
+            self.inst.components.locomotor.runspeed = boss.walkspeed
+        end
+    end
+
+    if self.inst.components.health then
+        self.inst.components.health:SetMaxHealth(boss.health)
+		self.inst.components.health:SetCurrentHealth(boss.health)
+		self.inst.components.health:DoDelta(0.01,true)
+        if boss.burnable_damage then
+            self.inst.components.health.fire_damage_scale = 0
+        end
+    end
+
+    if self.inst.components.combat then
+        self.inst.components.combat:SetDefaultDamage(boss.damage)
+        self.inst.components.combat:SetRange(boss.range)
+    end
+
+    if self.inst.components.sanity then
+        self.inst.components.sanity.custom_rate_fn = function (inst,dt)
+            if boss.enablelunacy then
+                return -TUNING.WERE_SANITY_PENALTY*3
+            else
+                return TUNING.WERE_SANITY_PENALTY*1.5
+            end
+        end
+    end
+
+    if boss.freezable_resistance and self.inst.components.freezable then
+        self.resistance = self.inst.components.freezable.resistance
+        self.inst.components.freezable:SetResistance(boss.freezable_resistance)
+    end
+
+    if boss.master_postinit then
+        boss.master_postinit(self.inst)
+    end
+end
+
+function WereEpic:TransformEpicMode(newmode)
+    if EPIC[self.mode] == nil or EPIC[newmode] == nil then
+        return
+    end
+    self:InitTransformHuman()
+    self.mode = newmode
+    self:InitTransformEpic()
 end
 
 function WereEpic:OnSave()

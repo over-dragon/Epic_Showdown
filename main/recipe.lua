@@ -31,25 +31,52 @@ AddRecipeFilter({
     -- custom_pos = false
 },#CRAFTING_FILTER_DEFS+1)
 
-local Keepsakes = require("epic_keepsakes")
-
 ---配方
-for i, v in ipairs(Keepsakes) do
-    AddRecipe2(v.name.."_keepsake",{Ingredient(v.mat, v.num*TUNING.EPIC_WORLD.MAT_NUM),
-    Ingredient("featherpencil", 0),Ingredient("papyrus", 1),
-    Ingredient(CHARACTER_INGREDIENT.HEALTH, 70), Ingredient(CHARACTER_INGREDIENT.SANITY, 70)},
-    TECH.MAGIC_THREE,
-    {atlas = "images/inventoryimages/"..v.name.."_keepsake.xml",
-    image = v.name.."_keepsake.tex"},
-    {"EPICKEEPSAKE"})
+if TUNING.EPIC_WORLD.RECIPE==0 then
+    local Keepsakes = require("epic_keepsakes")
+    for i, v in ipairs(Keepsakes) do
+        AddRecipe2(v.name.."_keepsake",{Ingredient(v.mat, v.num*TUNING.EPIC_WORLD.MAT_NUM),
+        Ingredient("featherpencil", 0),Ingredient("papyrus", 1),
+        Ingredient(CHARACTER_INGREDIENT.HEALTH, 70), Ingredient(CHARACTER_INGREDIENT.SANITY, 70)},
+        TECH.MAGIC_THREE,
+        nil,
+        {"EPICKEEPSAKE"})
 
-    AddRecipe2(v.name.."_origin",{Ingredient(v.mat, v.num*TUNING.EPIC_WORLD.MAT_NUM),
-    Ingredient(v.name.."_keepsake", 1,"images/inventoryimages/"..v.name.."_keepsake.xml", v.name.."_keepsake.tex"),
-    Ingredient(CHARACTER_INGREDIENT.HEALTH, 70), Ingredient(CHARACTER_INGREDIENT.SANITY, 70)},
-    TECH.EPICORIGIN_TWO,
-    {nounlock=true, station_tag = "epicorigin_station",
-    atlas = "images/inventoryimages/"..v.name.."_origin.xml",
-    image = v.name.."_origin.tex"})
+        AddRecipe2(v.name.."_origin",{Ingredient(v.mat2 or v.mat, (v.num2 or v.num)*TUNING.EPIC_WORLD.MAT_NUM),
+        Ingredient(v.name.."_keepsake", 1),
+        Ingredient(CHARACTER_INGREDIENT.HEALTH, 70), Ingredient(CHARACTER_INGREDIENT.SANITY, 70)},
+        TECH.EPICORIGIN_TWO,
+        {nounlock=true, station_tag = "epicorigin_station"})
+    end
+else
+    local num = TUNING.EPIC_WORLD.RECIPE or 1
+    local NewRecipes = require("epic_keepsake_recipes")
+    local function BuildMats(mats)
+        local ret = {}
+        for k, v in pairs(mats) do
+            table.insert(ret,Ingredient(k, v))
+        end
+        return ret
+    end
+
+    local function PickMats(v,field)
+        return v[field..tostring(num)] or v[field..tostring(1)]
+    end
+
+    for i, v in ipairs(NewRecipes) do
+        local ing_keepsake = BuildMats(PickMats(v,"keepsake_mats"))
+        local ing_origin = BuildMats(PickMats(v,"origin_mats"))
+        table.insert(ing_origin,1,Ingredient(v.name.."_keepsake", 1))
+
+        AddRecipe2(v.name.."_keepsake",ing_keepsake,
+        TECH.MAGIC_THREE,
+        nil,
+        {"EPICKEEPSAKE"})
+
+        AddRecipe2(v.name.."_origin",ing_origin,
+        TECH.EPICORIGIN_TWO,
+        {nounlock=true, station_tag = "epicorigin_station"})
+    end
 end
 
--- AddRecipeToFilter("deerclops_keepsake","EPICKEEPSAKE")
+

@@ -9,8 +9,6 @@ local function MakeEpicKeepsake(epic_mode)
     local assets =
     {
         Asset("ANIM", "anim/epic_keepsakes.zip"),
-        Asset("IMAGE","images/inventoryimages/"..epic_mode.."_keepsake.tex"),
-	    Asset("ATLAS", "images/inventoryimages/"..epic_mode.."_keepsake.xml"),
     }
 
     local function fn()
@@ -41,8 +39,6 @@ local function MakeEpicKeepsake(epic_mode)
 
         inst:AddComponent("inspectable")
         inst:AddComponent("inventoryitem")
-        inst.components.inventoryitem.imagename = epic_mode.."_keepsake"
-        inst.components.inventoryitem.atlasname = "images/inventoryimages/"..epic_mode.."_keepsake.xml"
 
         inst:AddComponent("wereepic_useableitem")
 

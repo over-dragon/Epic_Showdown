@@ -3,6 +3,7 @@ local StaticLayout = require("map/static_layout")
 
 Layouts["epic_origin_tiles"] = StaticLayout.Get("map/static_layouts/epic_origin")
 Layouts["epic_origin_tiles"].min_dist_from_land = 0
+Layouts["epic_origin_tiles"].add_topology = { room_id = "StaticLayoutIsland:epic_origin_tiles", tags = {"epic_origin"} }
 AddRoomPreInit("OceanRough", function(room)
     if room.contents.countstaticlayouts then
        room.contents.countstaticlayouts["epic_origin_tiles"] = 1
@@ -97,13 +98,67 @@ AddLevelPreInitAny(function(level)
                     print(string.format("[epic_origin] 虫洞: 起源端(%d,%d) <-> 大陆端(%d,%d)",
                         worm1_tx, worm1_ty, land_tx, land_ty))
                 else
-                    print("[epic_origin] 未找到陆地，跳过虫洞")
+                    print("[epic_origin_tiles] 未找到陆地，跳过虫洞")
                 end
             else
-                print("[epic_origin] entities 里没有 epic_chaosseed，跳过虫洞")
+                print("[epic_origin_tiles] entities 里没有 epic_chaosseed，跳过虫洞")
             end
         end
 
         return result
     end
 end)
+
+local function DeepFindPrefab(obj, prefab, visited)
+    if type(obj) ~= "table" then return false end
+    visited = visited or {}
+    if visited[obj] then return false end
+    visited[obj] = true
+    if obj.prefab == prefab then return true end
+    for _, v in pairs(obj) do
+        if type(v) == "table" and DeepFindPrefab(v, prefab, visited) then
+            return true
+        end
+    end
+    return false
+end
+
+local function HasEpicOriginIsland(savedata, world_map)
+    if savedata.ents["epic_chaosseed"] ~= nil
+        and #savedata.ents["epic_chaosseed"] > 0 then
+        return true
+    end
+
+    if savedata.map ~= nil and savedata.map.topology ~= nil
+        and savedata.map.topology.ids ~= nil then
+        for _, id in ipairs(savedata.map.topology.ids) do
+            if id == "StaticLayoutIsland:epic_origin_tiles" then
+                return true
+            end
+        end
+    end
+
+    for _, ents in pairs(savedata.ents) do
+        for _, rec in ipairs(ents) do
+            local d = rec.data
+            if d ~= nil
+                and (d.container ~= nil)
+                and DeepFindPrefab(d, "epic_chaosseed") then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+local old_DoRetrofitting = require("map/retrofit_savedata").DoRetrofitting
+local EpicOriginRetrofitting_EpicOrigin = require("map/ocean_retrofit_epic_origin")
+require("map/retrofit_savedata").DoRetrofitting = function (savedata, world_map)
+    if savedata.map ~= nil and savedata.map.prefab == "forest"
+        and not HasEpicOriginIsland(savedata, world_map) then
+        EpicOriginRetrofitting_EpicOrigin(world_map, savedata)
+    end
+    if old_DoRetrofitting then
+        old_DoRetrofitting(savedata, world_map)
+    end
+end

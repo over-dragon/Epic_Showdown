@@ -1,9 +1,17 @@
 local EPIC = require("wereepic_skill")
 
-local epic_attack_tags_sever = {"attack","notalking", "abouttoattack", "autopredict", "epic"}
-if TUNING.EPIC_WORLD.ATTACK_LOCOMTE_INTERRUPT~=1 then
-    table.insert(epic_attack_tags_sever,"busy")
+local function DoAttackHit(inst)
+    if not inst.sg.statemem.isattack then
+        inst:PerformBufferedAction()
+    else
+        inst:ClearBufferedAction()
+    end
+    inst.sg:RemoveStateTag("abouttoattack")
 end
+
+local sharkboi = EPIC_SHOWDOWN_FNS.SHARKBOI
+local shark = EPIC_SHOWDOWN_TUNING.SHARKBOI
+local vpg = EPIC_SHOWDOWN_FNS.VAULT_PILLAR_GUARD
 ---deerclops
 local DEERCLOPS_AOE_RANGE_PADDING = 3
 local AREAATTACK_MUST_TAGS = { "_combat" }
@@ -160,76 +168,6 @@ local function SpawnIceFx(inst, target)
 	end
 end
 
-local function SpawnLaser(inst)
-    local numsteps = 10
-    local x, y, z = inst.Transform:GetWorldPosition()
-    local angle = (inst.Transform:GetRotation() + 90) * DEGREES
-    local step = .75
-    local offset = 2 - step --should still hit players right up against us
-    -- local ground = TheWorld.Map
-    local targets, skiptoss = {}, {}
-    local i = -1
-    -- local noground = false
-    local fx, dist, delay, x1, z1
-    while i < numsteps do
-        i = i + 1
-        dist = i * step + offset
-        delay = math.max(0, i - 1)
-        x1 = x + dist * math.sin(angle)
-        z1 = z + dist * math.cos(angle)
-        -- if not ground:IsPassableAtPoint(x1, 0, z1) then
-        --     if i <= 0 then
-        --         return
-        --     end
-        --     noground = true
-        -- end
-        fx = SpawnPrefab(i > 0 and "deerclops_laser" or "deerclops_laserempty")
-        fx.caster = inst
-        fx.Transform:SetPosition(x1, 0, z1)
-        fx:Trigger(delay * FRAMES, targets, skiptoss)
-        if i == 0 then
-            ShakeAllCameras(CAMERASHAKE.FULL, .7, .02, .6, fx, 30)
-        end
-        -- if noground then
-        --     break
-        -- end
-    end
-
-    if i < numsteps then
-        dist = (i + .5) * step + offset
-        x1 = x + dist * math.sin(angle)
-        z1 = z + dist * math.cos(angle)
-    end
-    fx = SpawnPrefab("deerclops_laser")
-    fx.Transform:SetPosition(x1, 0, z1)
-    fx:Trigger((delay + 1) * FRAMES, targets, skiptoss)
-
-    fx = SpawnPrefab("deerclops_laser")
-    fx.Transform:SetPosition(x1, 0, z1)
-    fx:Trigger((delay + 2) * FRAMES, targets, skiptoss)
-end
-
-local function SetLightColour(inst, val)
-    if inst.Light ~= nil then
-        inst.Light:SetColour(val, 0, 0)
-    end
-end
-local function SetLightValue(inst, val)
-    if inst.Light ~= nil then
-        inst.Light:SetIntensity(.6 * val * val)
-        inst.Light:SetRadius(8 * val)
-        inst.Light:SetFalloff(3 * val)
-    end
-end
-local function SetLightValueAndOverride(inst, val, override)
-    if inst.Light ~= nil then
-        inst.Light:SetIntensity(.6 * val * val)
-        inst.Light:SetRadius(8 * val)
-        inst.Light:SetFalloff(3 * val)
-        inst.AnimState:SetLightOverride(override)
-    end
-end
-
 ---bearger
 local function SpawnSwipeFX(inst, offset, reverse)
     local mode = inst.replica.wereepic:GetEpicMode()
@@ -322,10 +260,6 @@ local function ShakeIfClose(inst)
     ShakeAllCameras(CAMERASHAKE.FULL, .7, .02, 1, inst, 40)
 end
 
-local function ShakeIfClose_Pound(inst)
-    ShakeAllCameras(CAMERASHAKE.VERTICAL, .7, .025, 1.25, inst, 40)
-end
-
 local function ShakeIfClose_Footstep(inst)
     ShakeAllCameras(CAMERASHAKE.FULL, .35, .02, 1, inst, 40)
 end
@@ -389,34 +323,6 @@ local function DoComboArcWork(inst)
 	DestroyStuff(inst, COMBO_ARC_OFFSET, TUNING.BEARGER_MELEE_RANGE, ARC, true)
 end
 
-local YAWNTARGET_CANT_TAGS = { "playerghost", "FX", "DECOR", "INLIMBO" }
-local YAWNTARGET_ONEOF_TAGS = { "sleeper", "player" }
-
-local function yawnfn(inst)
-    local x, y, z = inst.Transform:GetWorldPosition()
-    local ents = TheSim:FindEntities(x, y, z, TUNING.BEARGER_YAWN_RANGE, nil, YAWNTARGET_CANT_TAGS, YAWNTARGET_ONEOF_TAGS)
-    for i, v in ipairs(ents) do
-        if v ~= inst and v:IsValid() and
-            not (v.components.freezable ~= nil and v.components.freezable:IsFrozen()) and
-            not (v.components.pinnable ~= nil and v.components.pinnable:IsStuck()) and
-            not (v.components.fossilizable ~= nil and v.components.fossilizable:IsFossilized()) then
-            local mount = v.components.rider ~= nil and v.components.rider:GetMount() or nil
-            if mount ~= nil then
-                mount:PushEvent("ridersleep", { sleepiness = 7, sleeptime = TUNING.BEARGER_YAWN_SLEEPTIME })
-            end
-            if v:HasTag("player") and TheNet:GetPVPEnabled() then
-                v:PushEvent("yawn", { grogginess = 4, knockoutduration = TUNING.BEARGER_YAWN_SLEEPTIME })
-            elseif v.components.sleeper ~= nil then
-                v.components.sleeper:AddSleepiness(7, TUNING.BEARGER_YAWN_SLEEPTIME)
-            elseif v.components.grogginess ~= nil then
-                v.components.grogginess:AddGrogginess(4, TUNING.BEARGER_YAWN_SLEEPTIME)
-            else
-                v:PushEvent("knockedout")
-            end
-        end
-    end
-    return true
-end
 ---moose
 local MooseSpinTag = {"pickable", "NPC_workable", "CHOP_workable", "HAMMER_workable", "MINE_workable", "DIG_workable"}
 local MooseSpinCanNotTag = {"INLIMBO", "DECOR", "FX"}
@@ -1978,7 +1884,7 @@ end
 
 AddStategraphState("wilson",State{
 		name = "epic_attack",
-		tags = epic_attack_tags_sever,
+		tags = Epic_Showdown_Attack_Tags_Server,
 
 		onenter = function(inst)
             if inst.components.combat:InCooldown() then
@@ -2048,6 +1954,53 @@ AddStategraphState("wilson",State{
                 end
             elseif mode=="ancient_hulk" then
                 inst.AnimState:PlayAnimation("atk_chomp")
+            elseif mode=="sharkboi" then
+                if inst.AnimState:IsCurrentAnimation("atk1") or inst.AnimState:IsCurrentAnimation("atk1_pst") then
+                    inst.AnimState:PlayAnimation("atk2")
+                    inst.AnimState:PushAnimation("atk2_pst", false)
+                    inst.sg.statemem.sharkboi_atk2 = true
+                    inst.SoundEmitter:PlaySound("meta3/sharkboi/attack_small")
+                    inst.SoundEmitter:PlaySound("meta3/sharkboi/swipe_arm")
+                    sharkboi:SpawnSwipeFX(inst, 2, true)
+                elseif inst.AnimState:IsCurrentAnimation("atk2") or inst.AnimState:IsCurrentAnimation("atk2_pst") then
+                    inst.AnimState:PlayAnimation("atk3")
+                    inst.sg.statemem.sharkboi_atk3 = true
+                    inst.Physics:SetMotorVelOverride(9, 0, 0)
+                else
+                    inst.AnimState:PlayAnimation("atk1")
+                    inst.AnimState:PushAnimation("atk1_pst", false)
+                    inst.sg.statemem.sharkboi_atk1 = true
+                    if target and target:IsValid() then
+                        inst:ForceFacePoint(target.Transform:GetWorldPosition())
+                    end
+                end
+            elseif mode=="vault_pillar_guard" then
+                inst.sg:AddStateTag("jumping")
+                if inst.AnimState:IsCurrentAnimation("atk_1") or inst.AnimState:IsCurrentAnimation("atk_1_pst") then
+                    inst.AnimState:PlayAnimation("atk_2")
+                    inst.AnimState:PushAnimation("atk_2_pst", false)
+                    inst.Physics:SetMotorVelOverride(4.3, 0, 0)
+                    inst.sg.statemem.vpg_atk2 = true
+                elseif inst.AnimState:IsCurrentAnimation("atk_2") or inst.AnimState:IsCurrentAnimation("atk_2_pst") then
+                    if inst.AnimState:IsCurrentAnimation("atk_2") then
+                        inst.AnimState:PlayAnimation("atk_3_pre_a")
+                    else
+                        inst.sg:AddStateTag("jumping")
+                        inst.AnimState:PlayAnimation("atk_3_pre_b")
+                        inst.Physics:SetMotorVelOverride(2.3, 0, 0)
+                    end
+                    inst.AnimState:PushAnimation("atk_3", false)
+                    inst.AnimState:PushAnimation("atk_3_pst",false)
+                    inst.sg.statemem.vpg_atk3 = true
+                else
+                    inst.AnimState:PlayAnimation("atk_1")
+                    inst.AnimState:PushAnimation("atk_1_pst", false)
+                    inst.Physics:SetMotorVelOverride(3.2, 0, 0)
+                    inst.sg.statemem.vpg_atk1 = true
+                end
+                if target and target:IsValid() then
+                    inst:ForceFacePoint(target.Transform:GetWorldPosition())
+                end
             else
                 inst.AnimState:PlayAnimation("atk")
             end
@@ -2105,11 +2058,13 @@ AddStategraphState("wilson",State{
                 end
             end
 
-            inst.sg.statemem.isattack = buffaction.action == ACTIONS.ATTACK or nil
+            inst.sg.statemem.isattack = buffaction ~= nil and buffaction.action == ACTIONS.ATTACK or nil
 			inst.sg.statemem.epicmode = mode
 			inst.sg.statemem.original_target = target
 
-            if EPIC[mode].attack_timeout then
+            if inst.sg.statemem.sharkboi_atk1 or inst.sg.statemem.sharkboi_atk2 or inst.sg.statemem.vpg_atk1 or inst.sg.statemem.vpg_atk2 then
+                inst.sg:SetTimeout(inst.AnimState:GetCurrentAnimationLength())
+            elseif EPIC[mode].attack_timeout then
                 inst.sg:SetTimeout(EPIC[mode].attack_timeout)
             else
                 inst.sg:SetTimeout(inst.AnimState:GetCurrentAnimationLength()- 6 * FRAMES)
@@ -2157,6 +2112,16 @@ AddStategraphState("wilson",State{
                     end
 				end
 			end
+            if inst.sg.statemem.decelspeed then
+				if inst.sg.statemem.decelspeed > 1 then
+					inst.sg.statemem.decelspeed = inst.sg.statemem.decelspeed - 1
+					inst.Physics:SetMotorVelOverride(inst.sg.statemem.decelspeed, 0, 0)
+				else
+					inst.sg.statemem.decelspeed = nil
+					inst.Physics:ClearMotorVelOverride()
+					inst.Physics:Stop()
+				end
+			end
 		end,
 
 		timeline =
@@ -2171,25 +2136,53 @@ AddStategraphState("wilson",State{
 				    inst.SoundEmitter:PlaySound("daywalker/action/step", nil, 0.3)
                 end
             end),
+            FrameEvent(1, function(inst)
+                if inst.sg.statemem.vpg_atk1 or inst.sg.statemem.vpg_atk2 then
+                    vpg:DoWalkCollide(inst)    
+                end
+            end),
             FrameEvent(3, function(inst)
                 if inst.sg.statemem.epicmode=="antlion" then
                     if inst.sg.statemem.targetpos ~= nil then
                         SpawnSpikes(inst, inst.sg.statemem.targetpos, math.random(6, 7))
                         inst.sg.statemem.target = nil
                     end
-                    if not inst.sg.statemem.isattack then
-                        inst:PerformBufferedAction()
-                    else
-                        inst:ClearBufferedAction()
-                    end
-                    inst.sg:RemoveStateTag("abouttoattack")
+                    DoAttackHit(inst)
                 elseif inst.sg.statemem.epicmode=="stalker_atrium" then
                     inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/head")
+                elseif inst.sg.statemem.sharkboi_atk3 then
+                    inst.sg.statemem.decelspeed = 9
+                elseif inst.sg.statemem.vpg_atk3 then
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/atrium/retract", nil, 0.6)
                 end
             end),
             FrameEvent(4, function(inst)
                 if inst.sg.statemem.epicmode=="bearger" or (inst.sg.statemem.epicmode=="mutatedbearger" and not inst.sg.statemem.mutatedbearger_combo) then
                     inst.SoundEmitter:PlaySound(EPIC[inst.sg.statemem.epicmode].sounds.attack)
+                elseif inst.sg.statemem.sharkboi_atk2 then
+                    sharkboi:DoArcAttack(inst, shark.SWIPE_OFFSET, shark.SWIPE_RADIUS, shark.SWIPE_ARC)
+                    DoAttackHit(inst)
+                elseif inst.sg.statemem.vpg_atk2 then
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/rocks/move", nil, 0.5)
+                end
+            end),
+            FrameEvent(5, function(inst)
+                if inst.sg.statemem.vpg_atk1 then
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/atrium/retract", nil, 0.5)
+                    vpg:DoSmallstep(inst)
+				    vpg:DoWalkCollide(inst)
+                elseif inst.sg.statemem.vpg_atk2 then
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/atrium/retract", nil, 0.5)
+                    vpg:DoWalkCollide(inst)
+                end
+            end),
+            FrameEvent(6, function(inst)
+                if inst.sg.statemem.sharkboi_atk3 then
+                    inst.SoundEmitter:PlaySound("meta3/sharkboi/attack_big")
+                elseif inst.sg.statemem.vpg_atk1 then
+                    inst.Physics:ClearMotorVelOverride()
+                    inst.Physics:Stop()
+                    inst.sg:RemoveStateTag("jumping")
                 end
             end),
             FrameEvent(7, function(inst)
@@ -2204,27 +2197,45 @@ AddStategraphState("wilson",State{
                     inst.SoundEmitter:PlaySound("moonstorm/creatures/boss/alterguardian2/scream")
                 elseif inst.sg.statemem.epicmode=="ancient_hulk" then
                     inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/dig")
+                elseif inst.sg.statemem.sharkboi_atk3 then
+                    inst.SoundEmitter:PlaySound("meta3/sharkboi/swipe_tail")
+				    sharkboi:SpawnSwipeFX(inst, 2)
+                elseif inst.sg.statemem.vpg_atk3 then
+                    if not inst.sg:HasStateTag("jumping") then
+                        vpg:Shake_Lift(inst)
+                    end
                 end
             end),
             FrameEvent(9, function(inst)
                 if inst.sg.statemem.epicmode=="daywalker2" then
                     inst.SoundEmitter:PlaySound("qol1/daywalker_scrappy/objectswing_f15")
+                elseif inst.sg.statemem.vpg_atk2 then
+                    vpg:DoWalkCollide(inst)
+                end
+            end),
+            FrameEvent(10, function(inst)
+                if inst.sg.statemem.vpg_atk3 then
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/rocks/crack", nil, 0.5)
                 end
             end),
             FrameEvent(11, function(inst)
                 if inst.sg.statemem.epicmode=="mutatedwarg" then
                     inst.components.combat:DoAttack(inst.sg.statemem.target)
-                    if not inst.sg.statemem.isattack then
-                        inst:PerformBufferedAction()
-                    else
-                        inst:ClearBufferedAction()
-                    end
-                    inst.sg:RemoveStateTag("abouttoattack")
+                    DoAttackHit(inst)
                 end
             end),
             FrameEvent(12, function(inst)
                 if inst.sg.statemem.epicmode=="daywalker2" then
                     daywalker2_SpawnSwipeFX(inst, 1, true)
+                elseif inst.sg.statemem.sharkboi_atk1 then
+                    inst.SoundEmitter:PlaySound("meta3/sharkboi/attack_small")
+				    inst.SoundEmitter:PlaySound("meta3/sharkboi/swipe_arm")
+                    sharkboi:SpawnSwipeFX(inst, 2)
+                elseif inst.sg.statemem.sharkboi_atk3 then
+                    sharkboi:DoArcAttack(inst, shark.SWIPE_OFFSET, shark.SWIPE_RADIUS, shark.SWIPE_ARC, nil, 1)
+                    DoAttackHit(inst)
+                elseif inst.sg.statemem.vpg_atk2 then
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/rocks/crack", nil, 0.4)
                 end
             end),
             FrameEvent(13, function(inst)
@@ -2232,18 +2243,24 @@ AddStategraphState("wilson",State{
                     inst.SoundEmitter:PlaySound("saltydog/creatures/boss/malbatross/attack_swipe_water")
                 elseif inst.sg.statemem.epicmode=="stalker_atrium" then
                     inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/attack_swipe")
+                elseif inst.sg.statemem.vpg_atk2 then
+                    vpg:DoSmallstep(inst)
+				    vpg:DoWalkCollide(inst)
+                elseif inst.sg.statemem.vpg_atk3 then
+                    if inst.sg:HasStateTag("jumping") then
+                        vpg:Shake_Lift(inst)
+                    end
                 end
             end),
             FrameEvent(14, function(inst)
                 if inst.sg.statemem.epicmode=="beequeen" then
                     inst.SoundEmitter:PlaySound("dontstarve/creatures/together/bee_queen/attack")
                     inst.components.combat:DoAttack(inst.sg.statemem.target)
-                    if not inst.sg.statemem.isattack then
-                        inst:PerformBufferedAction()
-                    else
-                        inst:ClearBufferedAction()
-                    end
-                    inst.sg:RemoveStateTag("abouttoattack")
+                    DoAttackHit(inst)
+                elseif inst.sg.statemem.vpg_atk2 then
+                    inst.Physics:ClearMotorVelOverride()
+                    inst.Physics:Stop()
+                    inst.sg:RemoveStateTag("jumping")
                 end
             end),
             FrameEvent(15, function(inst)
@@ -2254,32 +2271,29 @@ AddStategraphState("wilson",State{
                     if inst:HasTag("dragonfly_enraged") and target ~= nil and target.components.health ~= nil and not target.components.health:IsDead() and target:IsValid() then
                         target.components.health:DoFireDamage(5, inst, true)
                     end
-                    if not inst.sg.statemem.isattack then
-                        inst:PerformBufferedAction()
-                    else
-                        inst:ClearBufferedAction()
-                    end
-                    inst.sg:RemoveStateTag("abouttoattack")
+                    DoAttackHit(inst)
                 elseif inst.sg.statemem.epicmode=="ancient_hulk" then
                     inst.components.combat:DoAttack(inst.sg.statemem.target)
-                    if not inst.sg.statemem.isattack then
-                        inst:PerformBufferedAction()
-                    else
-                        inst:ClearBufferedAction()
-                    end
-                    inst.sg:RemoveStateTag("abouttoattack")
+                    DoAttackHit(inst)
                 end
             end),
             FrameEvent(16, function(inst)
                 if inst.sg.statemem.epicmode=="daywalker2" then
                     local targets = {}
                     daywalker2_DoArcAttack(inst, 1, 4.5, 240, nil, 0.75, nil, targets)
-                    if not inst.sg.statemem.isattack then
-                        inst:PerformBufferedAction()
-                    else
-                        inst:ClearBufferedAction()
+                    DoAttackHit(inst)
+                elseif inst.sg.statemem.sharkboi_atk1 then
+                    sharkboi:DoArcAttack(inst, shark.SWIPE_OFFSET, shark.SWIPE_RADIUS, shark.SWIPE_ARC)
+                    DoAttackHit(inst)
+                end
+            end),
+            FrameEvent(17, function(inst)
+                if inst.sg.statemem.vpg_atk3 then
+                    if inst.sg:HasStateTag("jumping") then
+                        inst.Physics:ClearMotorVelOverride()
+                        inst.Physics:Stop()
+                        inst.sg:RemoveStateTag("jumping")
                     end
-                    inst.sg:RemoveStateTag("abouttoattack")
                 end
             end),
             FrameEvent(18, function(inst)
@@ -2296,14 +2310,9 @@ AddStategraphState("wilson",State{
             end),
             FrameEvent(20, function(inst)
                 if inst.sg.statemem.epicmode=="moose" then
-                    inst.components.combat:DoAttack(inst.sg.statemem.target, nil, nil, "electric")
                     inst.SoundEmitter:PlaySound(EPIC[inst.sg.statemem.epicmode].sounds.attack)
-                    if not inst.sg.statemem.isattack then
-                        inst:PerformBufferedAction()
-                    else
-                        inst:ClearBufferedAction()
-                    end
-                    inst.sg:RemoveStateTag("abouttoattack")
+                    inst.components.combat:DoAttack(inst.sg.statemem.target, nil, nil, "electric")
+                    DoAttackHit(inst)
                 end
             end),
             FrameEvent(21, function(inst)
@@ -2335,14 +2344,12 @@ AddStategraphState("wilson",State{
                     inst.SoundEmitter:PlaySound("moonstorm/creatures/boss/alterguardian1/tantrum")
                 elseif inst.sg.statemem.epicmode=="alterguardian_phase2" then
                     inst.components.combat:DoAttack(inst.sg.statemem.target)
-                    if not inst.sg.statemem.isattack then
-                        inst:PerformBufferedAction()
-                    else
-                        inst:ClearBufferedAction()
-                    end
-                    inst.sg:RemoveStateTag("abouttoattack")
+                    DoAttackHit(inst)
                 elseif inst.sg.statemem.mutatedbearger_combo then
                     inst.Physics:SetMotorVelOverride(6, 0, 0)
+                elseif inst.sg.statemem.vpg_atk2 then
+                    inst.SoundEmitter:PlaySound("rifts7/pillar_guard/whoosh")
+                    vpg:SpawnSwipeFX(inst, true)
                 end
             end),
             FrameEvent(24, function(inst)
@@ -2361,6 +2368,8 @@ AddStategraphState("wilson",State{
                     ph1_spawn_landfx(inst)
                 elseif inst.sg.statemem.mutatedbearger_combo then
                     SpawnSwipeFX(inst, COMBO_ARC_OFFSET, true)
+                elseif inst.sg.statemem.vpg_atk2 then
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/atrium/retract", nil, 0.5)
                 end
             end),
             FrameEvent(26, function(inst)
@@ -2376,6 +2385,13 @@ AddStategraphState("wilson",State{
                     else
                         inst:ClearBufferedAction()
                     end
+                elseif inst.sg.statemem.vpg_atk1 then
+                    vpg:SpawnSwipeFX(inst)
+                elseif inst.sg.statemem.vpg_atk2 then
+                    vpg:DoPunchAOE(inst)
+                    DoAttackHit(inst)
+                elseif inst.sg.statemem.vpg_atk3 then
+                    inst.SoundEmitter:PlaySound("rifts7/pillar_guard/whoosh")
                 end
             end),
             FrameEvent(27, function(inst)
@@ -2396,12 +2412,7 @@ AddStategraphState("wilson",State{
                 elseif inst.sg.statemem.mutatedbearger_combo then
                     inst.sg.statemem.targets = {}
 				    DoComboArcAttack(inst, inst.sg.statemem.targets)
-                    if not inst.sg.statemem.isattack then
-                        inst:PerformBufferedAction()
-                    else
-                        inst:ClearBufferedAction()
-                    end
-                    inst.sg:RemoveStateTag("abouttoattack")
+                    DoAttackHit(inst)
                 end
             end),
             FrameEvent(29, function(inst)
@@ -2412,12 +2423,7 @@ AddStategraphState("wilson",State{
                 elseif inst.sg.statemem.epicmode=="malbatross" then
                     inst.components.combat:DoAttack(inst.sg.statemem.target)
                     SpawnMalbatrossAttackWaves(inst)
-                    if not inst.sg.statemem.isattack then
-                        inst:PerformBufferedAction()
-                    else
-                        inst:ClearBufferedAction()
-                    end
-                    inst.sg:RemoveStateTag("abouttoattack")
+                    DoAttackHit(inst)
                 elseif inst.sg.statemem.epicmode=="alterguardian_phase3" then
                     MooseDoArcAttack(inst)
                     if not inst.sg.statemem.isattack then
@@ -2435,11 +2441,41 @@ AddStategraphState("wilson",State{
                     if next(targets) == nil then
                         inst:PushEvent("onmissother", { target = original_target }) --for ChaseAndAttack
                     end
+                elseif inst.sg.statemem.vpg_atk1 then
+                    vpg:DoPunchAOE(inst)
+                    DoAttackHit(inst)
+                elseif inst.sg.statemem.vpg_atk3 then
+                    inst.SoundEmitter:PlaySound("daywalker/action/attack_slam_whoosh")
                 end
 			end),
             FrameEvent(30, function(inst)
                 if inst.sg.statemem.mutatedbearger_combo then
                     inst.Physics:SetMotorVelOverride(6, 0, 0)
+                elseif inst.sg.statemem.vpg_atk3 then
+                    vpg:Shake_Lift(inst)
+                    local dist = 4
+                    local x, _, z = inst.Transform:GetWorldPosition()
+                    local target = inst.sg.statemem.target
+                    if target and target:IsValid() then
+                        local x1, _, z1 = target.Transform:GetWorldPosition()
+                        local dx = x1 - x
+                        local dz = z1 - z
+                        if dx ~= 0 or dz ~= 0 then
+                            local dir = math.atan2(-dz, dx) * RADIANS
+                            if DiffAngle(dir, inst.Transform:GetRotation()) < 45 then
+                                inst.Transform:SetRotation(dir)
+                                dist = math.sqrt(dx * dx + dz * dz)
+                                dist = math.clamp(dist - 1, 0, 10)
+                            end
+                        else
+                            dist = 0
+                        end
+                    end
+                    inst.sg:AddStateTag("jumping")
+                    inst.sg:AddStateTag("nofreeze")
+                    inst.sg:AddStateTag("nointerrupt")
+                    inst.components.locomotor:Stop()
+                    inst.Physics:SetMotorVelOverride(dist / ((44 - 30) * FRAMES), 0, 0)
                 end
             end),
             FrameEvent(31, function(inst)
@@ -2451,20 +2487,10 @@ AddStategraphState("wilson",State{
                 if inst.sg.statemem.epicmode=="bearger" then
                     inst.sg.statemem.targets = {}
 				    DoArcAttack(inst, 1, TUNING.BEARGER_MELEE_RANGE, nil, nil, nil, inst.sg.statemem.targets)
-                    if not inst.sg.statemem.isattack then
-                        inst:PerformBufferedAction()
-                    else
-                        inst:ClearBufferedAction()
-                    end
-                    inst.sg:RemoveStateTag("abouttoattack")
+                    DoAttackHit(inst)
                 elseif inst.sg.statemem.epicmode=="deerclops" or inst.sg.statemem.epicmode=="mutateddeerclops" then
-                    if not inst.sg.statemem.isattack then
-                        inst:PerformBufferedAction()
-                    else
-                        inst:ClearBufferedAction()
-                    end
+                    DoAttackHit(inst)
 					SpawnIceFx(inst, inst.sg.statemem.original_target)
-                    inst.sg:RemoveStateTag("abouttoattack")
                 elseif inst.sg.statemem.epicmode=="antlion" then
                     ShakeAllCameras(CAMERASHAKE.VERTICAL, .3, .02, 1, inst, 30)
                 elseif inst.sg.statemem.epicmode=="alterguardian_phase2" and inst.sg.statemem.ph2_summon then
@@ -2472,21 +2498,11 @@ AddStategraphState("wilson",State{
                     inst.sg:RemoveStateTag("busy")
                 elseif inst.sg.statemem.epicmode=="stalker_atrium" then
                     inst.components.combat:DoAttack(inst.sg.statemem.target)
-                    if not inst.sg.statemem.isattack then
-                        inst:PerformBufferedAction()
-                    else
-                        inst:ClearBufferedAction()
-                    end
-                    inst.sg:RemoveStateTag("abouttoattack")
+                    DoAttackHit(inst)
                 elseif inst.sg.statemem.epicmode=="mutatedbearger" and not inst.sg.statemem.mutatedbearger_combo then
                     inst.sg.statemem.targets = {}
                     DoComboArcAttack(inst, inst.sg.statemem.targets)
-                    if not inst.sg.statemem.isattack then
-                        inst:PerformBufferedAction()
-                    else
-                        inst:ClearBufferedAction()
-                    end
-                    inst.sg:RemoveStateTag("abouttoattack")
+                    DoAttackHit(inst)
                 elseif inst.sg.statemem.mutatedbearger_combo then
                     inst.Physics:SetMotorVelOverride(1.5, 0, 0)
                 end
@@ -2587,6 +2603,8 @@ AddStategraphState("wilson",State{
                 elseif inst.sg.statemem.epicmode=="mutatedbearger" and not inst.sg.statemem.mutatedbearger_combo then
                     inst.sg:RemoveStateTag("busy")
                     inst.sg:RemoveStateTag("attack")
+                elseif inst.sg.statemem.vpg_atk2 then
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/atrium/retract", nil, 0.3)
                 end
             end),
             FrameEvent(42, function(inst)
@@ -2600,6 +2618,18 @@ AddStategraphState("wilson",State{
             FrameEvent(43, function(inst)
                 if inst.sg.statemem.epicmode=="daywalker" then
                     inst.Physics:SetMotorVelOverride(36 * inst.sg.statemem.speedmult, 0, 0)
+                elseif inst.sg.statemem.vpg_atk3 then
+                    vpg:SpawnSmashFx(inst)
+                    vpg:DoFootstep(inst)
+                end
+            end),
+            FrameEvent(44, function(inst)
+                if inst.sg.statemem.vpg_atk3 then
+                    inst.Physics:ClearMotorVelOverride()
+                    inst.Physics:Stop()
+                    inst.sg:RemoveStateTag("jumping")
+                    inst.sg:RemoveStateTag("nofreeze")
+                    inst.sg:RemoveStateTag("nointerrupt")
                 end
             end),
             FrameEvent(45, function(inst)
@@ -2610,6 +2640,21 @@ AddStategraphState("wilson",State{
                 elseif inst.sg.statemem.epicmode=="alterguardian_phase3" then
                     MooseDoArcAttack(inst)
                     inst.sg:RemoveStateTag("abouttoattack")
+                elseif inst.sg.statemem.vpg_atk1 then
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/atrium/retract", nil, 0.6)
+                elseif inst.sg.statemem.vpg_atk3 then
+                    inst.SoundEmitter:PlaySound("daywalker/action/attack_slam_down")
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/rocks/crack")
+                    vpg:_PlayFootstep(inst)
+                    vpg:Shake_Pound(inst)
+                    inst.sg.statemem.targets = {}
+                    inst.sg.statemem.tosstargets = {}
+                    vpg:DoSmashAOE(inst)
+                    if not inst.sg.statemem.isattack then
+                        inst:PerformBufferedAction()
+                    else
+                        inst:ClearBufferedAction()
+                    end
                 end
             end),
             FrameEvent(46, function(inst)
@@ -2625,19 +2670,38 @@ AddStategraphState("wilson",State{
 
                     local targets = {}
 
-                    if not inst.sg.statemem.isattack then
-                        inst:PerformBufferedAction()
-                    else
-                        inst:ClearBufferedAction()
-                    end
+                    DoAttackHit(inst)
 
                     DoAOEAttack(inst, 0, TUNING.DAYWALKER_SLAM_SINKHOLERADIUS, 0.7, 0.7, false,targets)
-                    inst.sg:RemoveStateTag("abouttoattack")
+                elseif inst.sg.statemem.vpg_atk2 then
+                    vpg:DoSmallstep(inst)
+                elseif inst.sg.statemem.vpg_atk3 then
+                    inst.sg.statemem.targets = {}
+                    vpg:DoSmashAOE(inst)
                 end
             end),
             FrameEvent(47, function(inst)
                 if inst.sg.statemem.epicmode=="stalker_atrium" then
                     inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/head")
+                elseif inst.sg.statemem.vpg_atk3 then
+                    inst.sg.statemem.targets = {}
+                    vpg:DoSmashAOE(inst)
+                    inst.sg:RemoveStateTag("abouttoattack")
+                end
+            end),
+             FrameEvent(50, function(inst)
+                if inst.sg.statemem.vpg_atk2 then
+                    vpg:DoSmallstep(inst)
+                end
+            end),
+            FrameEvent(51, function(inst)
+                if inst.sg.statemem.vpg_atk1 then
+                    vpg:DoSmallstep(inst)
+                end
+            end),
+            FrameEvent(53, function(inst)
+                if inst.sg.statemem.vpg_atk2 then
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/rocks/hit", nil, 0.5)
                 end
             end),
             FrameEvent(55, function(inst)
@@ -2645,6 +2709,8 @@ AddStategraphState("wilson",State{
                     inst.SoundEmitter:PlaySound("moonstorm/creatures/boss/alterguardian1/tantrum")
                 elseif inst.sg.statemem.epicmode=="alterguardian_phase3" then
                     inst.SoundEmitter:KillSound("stab_loop")
+                elseif inst.sg.statemem.vpg_atk1 then
+                    vpg:DoSmallstep(inst)
                 end
             end),
             FrameEvent(57, function(inst)
@@ -2661,6 +2727,16 @@ AddStategraphState("wilson",State{
 
                     ph1_DoAOEAttack(inst, TUNING.ALTERGUARDIAN_PHASE1_AOERANGE)
 
+                end
+            end),
+            FrameEvent(61, function(inst)
+                if inst.sg.statemem.vpg_atk3 then
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/atrium/retract", nil, 0.6)
+                end
+            end),
+            FrameEvent(68, function(inst)
+                if inst.sg.statemem.vpg_atk3 then
+                    vpg:DoSmallstep(inst)
                 end
             end),
             FrameEvent(70, function(inst)
@@ -2684,6 +2760,11 @@ AddStategraphState("wilson",State{
                     inst.sg:RemoveStateTag("abouttoattack")
                 end
 			end),
+            FrameEvent(75, function(inst)
+                if inst.sg.statemem.vpg_atk3 then
+                    vpg:DoSmallstep(inst)
+                end
+            end),
             FrameEvent(110, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase1" then
                     inst.SoundEmitter:PlaySound("moonstorm/creatures/boss/alterguardian1/step")
@@ -2728,6 +2809,14 @@ AddStategraphState("wilson",State{
             elseif inst.sg.statemem.epicmode=="daywalker2" then
                 inst.components.combat:SetDefaultDamage(TUNING.DAYWALKER_DAMAGE)
 			    daywalker2_KillSwipeFX(inst)
+            elseif inst.sg.statemem.sharkboi_atk1 or inst.sg.statemem.sharkboi_atk2 then
+                sharkboi:KillSwipeFX(inst)
+            elseif inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                vpg:KillSwipeOrSmashFx(inst)
+                if inst.sg:HasStateTag("jumping") then
+                    inst.Physics:ClearMotorVelOverride()
+                    inst.Physics:Stop()
+                end
             end
             if inst.sg.mem.summon_fx and inst.sg.mem.summon_fx:IsValid() then
                 inst.sg.mem.summon_fx:PushEvent("endloop")
@@ -2761,7 +2850,7 @@ AddStategraphState("wilson",State{
             elseif inst:HasTag("dragonfly_enraged") then
                 inst.AnimState:PlayAnimation("walk_angry_pre")
                 inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/angry")
-            elseif inst:HasTag("daywalker_run") or mode=="mutatedwarg" then
+            elseif inst:HasTag("daywalker_run") or mode=="mutatedwarg" or mode=="sharkboi" then
                 inst.AnimState:PlayAnimation("run_pre")
             else
                 inst.AnimState:PlayAnimation("walk_pre")
@@ -2783,6 +2872,8 @@ AddStategraphState("wilson",State{
             TimeEvent(1*FRAMES, function(inst)
                 if not inst:HasTag("dragonfly_enraged") then
                     inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/dragonfly/blink")
+                elseif inst.sg.statemem.epicmode=="sharkboi" then
+                    sharkboi:DoRunWork(inst)
                 end
             end),
             TimeEvent(2*FRAMES, function(inst)
@@ -2863,7 +2954,7 @@ AddStategraphState("wilson",State{
                         inst.AnimState:PlayAnimation("walk", true)
                     end
                 end
-            elseif inst:HasTag("daywalker_run") or mode=="mutatedwarg" then
+            elseif inst:HasTag("daywalker_run") or mode=="mutatedwarg" or mode=="sharkboi" then
                 if not inst.AnimState:IsCurrentAnimation("run_loop") then
                     inst.AnimState:PlayAnimation("run_loop", true)
                 end
@@ -2897,6 +2988,8 @@ AddStategraphState("wilson",State{
                     PlayFootstep(inst)
                 elseif inst.sg.statemem.epicmode=="stalker_atrium" then
                     inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/footstep")
+                elseif inst.sg.statemem.epicmode=="sharkboi" then
+                    sharkboi:DoRunWork(inst)
                 end
 			end),
             FrameEvent(1, function(inst)
@@ -2906,6 +2999,15 @@ AddStategraphState("wilson",State{
                     PlayFootstep(inst)
 				end
 			end),
+            FrameEvent(2, function(inst)
+				if inst.sg.statemem.epicmode=="sharkboi" then
+					sharkboi:DoFootstep(inst)
+                elseif inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoFootstep(inst)
+                    vpg:DoWalkStomp(inst)
+                    inst.sg:AddStateTag("footstepped")
+				end
+			end),
             FrameEvent(3, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase1" then
                     phase1_play_foley(inst)
@@ -2913,6 +3015,11 @@ AddStategraphState("wilson",State{
                     phase2_play_foley(inst)
                 elseif inst.sg.statemem.epicmode=="ancient_hulk" then
                     inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/ribs/servo", {intensity=math.random()})
+				end
+			end),
+            FrameEvent(4, function(inst)
+				if inst.sg.statemem.epicmode=="sharkboi" then
+					sharkboi:DoRunWork(inst)
 				end
 			end),
             FrameEvent(5, function(inst)
@@ -2927,12 +3034,18 @@ AddStategraphState("wilson",State{
                 if inst.sg.statemem.epicmode=="alterguardian_phase1" then
                     phase1_play_step(inst)
                     PlayFootstep(inst)
+                elseif inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoWalkCollide(inst)
 				end
 			end),
 			FrameEvent(8, function(inst)
                 if inst:HasTag("bearger_run") then
                     DoFootstep(inst)
 				    DestroyStuff(inst, 0, 5)
+                elseif inst.sg.statemem.epicmode=="sharkboi" then
+					sharkboi:DoRunWork(inst)
+                elseif inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.sg:RemoveStateTag("footstepped")
                 end
 			end),
             FrameEvent(9, function(inst)
@@ -2949,11 +3062,20 @@ AddStategraphState("wilson",State{
                     phase2_play_foley(inst)
                 elseif inst:HasTag("daywalker_run") then
                     DoFootstepAOE(inst)
+                elseif inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoWalkCollide(inst)
 				end
 			end),
             FrameEvent(12, function(inst)
                 if inst.sg.statemem.epicmode=="ancient_hulk" then
                     inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/head/step", {intensity=math.random()})
+				elseif inst.sg.statemem.epicmode=="sharkboi" then
+					sharkboi:DoRunWork(inst)
+                end
+			end),
+            FrameEvent(14, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoWalkCollide(inst)
 				end
 			end),
             FrameEvent(15, function(inst)
@@ -2966,11 +3088,19 @@ AddStategraphState("wilson",State{
 					phase1_play_step(inst)
                 elseif inst.sg.statemem.epicmode=="ancient_hulk" then
                     inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/head/step", {intensity=math.random()})
-				end
+				elseif inst.sg.statemem.epicmode=="sharkboi" then
+					sharkboi:DoRunWork(inst)
+                    sharkboi:DoFootstep(inst)
+                end
 			end),
 			FrameEvent(17, function(inst)
 				if (inst.sg.statemem.epicmode=="bearger" or inst.sg.statemem.epicmode=="mutatedbearger" ) and not inst:HasTag("bearger_run") then
 					DoFootstep(inst)
+				end
+			end),
+            FrameEvent(18, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoWalkCollide(inst)
 				end
 			end),
             FrameEvent(19, function (inst)
@@ -2982,7 +3112,9 @@ AddStategraphState("wilson",State{
             FrameEvent(20, function(inst)
                 if inst.sg.statemem.epicmode=="ancient_hulk" then
                     inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/arm/step", {intensity=math.random()})
-				end
+				elseif inst.sg.statemem.epicmode=="sharkboi" then
+					sharkboi:DoRunWork(inst)
+                end
 			end),
             FrameEvent(22, function(inst)
                 if inst:HasTag("daywalker_run") then
@@ -2991,6 +3123,8 @@ AddStategraphState("wilson",State{
 					phase1_play_foley(inst)
                 elseif inst.sg.statemem.epicmode=="alterguardian_phase2" then
 					phase2_play_foley(inst)
+                elseif inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoWalkCollide(inst)
 				end
 			end),
             FrameEvent(23, function(inst)
@@ -3003,12 +3137,26 @@ AddStategraphState("wilson",State{
             FrameEvent(24, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase2" then
 					phase2_play_step(inst)
+                elseif inst.sg.statemem.epicmode=="sharkboi" then
+					sharkboi:DoRunWork(inst)
+				end
+			end),
+            FrameEvent(26, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoWalkCollide(inst)
 				end
 			end),
             FrameEvent(27, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase1" then
 					phase1_play_step(inst)
                     PlayFootstep(inst)
+				end
+			end),
+            FrameEvent(30, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoFootstep(inst)
+                    vpg:DoWalkStomp(inst)
+                    inst.sg:AddStateTag("footstepped")
 				end
 			end),
             FrameEvent(32, function(inst)
@@ -3021,10 +3169,17 @@ AddStategraphState("wilson",State{
 					spawnripple(inst)
 				end
             end),
+            FrameEvent(34, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoWalkCollide(inst)
+				end
+			end),
             FrameEvent(36, function(inst)
 				if inst.sg.statemem.epicmode=="alterguardian_phase2" then
 					phase2_play_step(inst)
                     PlayFootstep(inst)
+                elseif inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.sg:RemoveStateTag("footstepped")
 				end
             end),
             FrameEvent(37, function(inst)
@@ -3032,12 +3187,27 @@ AddStategraphState("wilson",State{
 					inst.SoundEmitter:PlaySound("saltydog/creatures/boss/malbatross/flap")
 				end
             end),
+            FrameEvent(38, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoWalkCollide(inst)
+				end
+			end),
+            FrameEvent(42, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoWalkCollide(inst)
+				end
+			end),
             FrameEvent(43, function (inst)
                 if (inst.sg.statemem.epicmode=="daywalker" or inst.sg.statemem.epicmode=="daywalker2" ) and
                 not inst:HasTag("daywalker_run") then
                     daywalker_DoFootstep(inst)
                 end
             end),
+            FrameEvent(46, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoWalkCollide(inst)
+				end
+			end),
             FrameEvent(47, function(inst)
 				if inst.sg.statemem.epicmode=="deerclops" or inst.sg.statemem.epicmode=="mutateddeerclops" then
 					DeerclopsFootstep(inst, true)
@@ -3049,6 +3219,16 @@ AddStategraphState("wilson",State{
                     PlayFootstep(inst)
 				end
             end),
+            FrameEvent(50, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoWalkCollide(inst)
+				end
+			end),
+            FrameEvent(54, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoWalkCollide(inst)
+				end
+			end),
         },
 
         events =
@@ -3091,6 +3271,13 @@ AddStategraphState("wilson",State{
                 inst.AnimState:PlayAnimation("walk_angry_pst")
             elseif inst:HasTag("daywalker_run") or mode=="mutatedwarg" then
                 inst.AnimState:PlayAnimation("run_pst")
+            elseif mode=="sharkboi" then
+                inst.AnimState:PlayAnimation("run_pst")
+                local t = GetTime()
+                if (inst.sg.mem.sharkboi_lastfootstep or -math.huge) + 0.3 < t then
+                    inst.sg.mem.sharkboi_lastfootstep = t
+                    PlayFootstep(inst, 0.5)
+                end
             else
                 inst.AnimState:PlayAnimation("walk_pst")
             end
@@ -3174,7 +3361,9 @@ AddStategraphState("wilson",State{
         },
 
         onexit = function(inst)
-
+            if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                vpg:DoWalkStomp(inst)
+            end
         end,
     })
 
@@ -3214,6 +3403,11 @@ AddStategraphState("wilson",State{
                 inst.AnimState:PlayAnimation("death3")
             elseif mode=="ancient_hulk" then
                 inst.AnimState:PlayAnimation("death_explode")
+            elseif mode=="sharkboi" then
+                inst.AnimState:PlayAnimation("defeated_pre")
+            elseif mode=="vault_pillar_guard" then
+                inst.AnimState:PlayAnimation("death")
+                inst.SoundEmitter:PlaySound("dontstarve/common/together/rocks/crack", nil, 0.5)
             else
                 inst.AnimState:PlayAnimation("death")
             end
@@ -3233,6 +3427,11 @@ AddStategraphState("wilson",State{
             FrameEvent(1, function(inst)
                 if inst.sg.statemem.epicmode=="stalker_atrium" then
                     inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/death_pop")
+                end
+            end),
+            FrameEvent(4, function(inst)
+                if inst.sg.statemem.epicmode=="sharkboi" then
+                    PlayFootstep(inst)
                 end
             end),
             FrameEvent(6, function(inst)
@@ -3281,6 +3480,11 @@ AddStategraphState("wilson",State{
                     inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/laser", {intensity= .4})
                 end
             end),
+            FrameEvent(25, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.SoundEmitter:PlaySound("rifts7/pillar_guard/voice_hit", nil, 0.6)
+                end
+            end),
             FrameEvent(27, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase2" then
                     set_lightvalues(inst, 0.9)
@@ -3288,9 +3492,21 @@ AddStategraphState("wilson",State{
                     inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/laser", {intensity= .6})
                 end
             end),
+            FrameEvent(28, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.SoundEmitter:PlaySound("rifts4/worm_boss/rumble")
+                end
+            end),
             FrameEvent(31, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase2" then
                     set_lightvalues(inst, 0.5)
+                end
+            end),
+            FrameEvent(32, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.SoundEmitter:PlaySound("daywalker/pillar/destroy", nil, 0.8)
+                    inst.SoundEmitter:PlaySound("rifts4/worm_boss/dirt_emerge")
+                    vpg:Shake_Heavy(inst)
                 end
             end),
             FrameEvent(33, function(inst)
@@ -3325,6 +3541,11 @@ AddStategraphState("wilson",State{
                     ShakeIfClose(inst)
                 end
             end),
+            FrameEvent(45, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.SoundEmitter:PlaySound("daywalker/pillar/hit", nil, 0.8)
+                end
+            end),
             FrameEvent(48, function(inst)
                 if inst.sg.statemem.epicmode=="malbatross" then
                     spawnsplash(inst)
@@ -3336,6 +3557,8 @@ AddStategraphState("wilson",State{
             FrameEvent(49, function(inst)
                 if inst.sg.statemem.epicmode=="stalker_atrium" then
                     inst.SoundEmitter:PlaySound("dontstarve/creatures/together/stalker/death3/orchhits")
+                elseif inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:Shake_Med(inst)
                 end
             end),
             FrameEvent(55, function(inst)
@@ -3348,6 +3571,11 @@ AddStategraphState("wilson",State{
                     set_lightvalues(inst, 0.65)
                 elseif inst.sg.statemem.epicmode=="ancient_hulk" then
                     inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/explode_small",nil,.5)
+                end
+            end),
+            FrameEvent(64, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:Shake_Light(inst)
                 end
             end),
             FrameEvent(67, function(inst)
@@ -3485,38 +3713,38 @@ AddStategraphState("wilson",State{
         {
             EventHandler("animover", function(inst)
                 if inst.AnimState:AnimDone() then
-                    local data = inst.sg.statemem.epicdeathdata
-                    if inst.components.wereepic then
-                        inst.components.wereepic:OnBecameHuman()
-                    end
-                    if data then
-                        if data ~= nil and data.cause == "file_load" and inst.components.revivablecorpse ~= nil then
-                            inst.sg:GoToState("corpse", true)
-                        elseif not inst.sg:HasStateTag("dead") then
+                    -- local data = inst.sg.statemem.epicdeathdata
+                    -- if inst.components.wereepic then
+                    --     inst.components.wereepic:OnBecameHuman()
+                    -- end
+                    -- if data then
+                    --     if data ~= nil and data.cause == "file_load" and inst.components.revivablecorpse ~= nil then
+                    --         inst.sg:GoToState("corpse", true)
+                    --     elseif not inst.sg:HasStateTag("dead") then
 
-                            if inst.shadowthrall_parasite_hosted_death and
-                                not inst.components.rider:IsRiding() and
-                                not inst:HasAnyTag("beaver", "weremoose", "weregoose") and
-                                not inst.charlie_vinesave and
-                                not (inst.wx78_backupbody_save and inst.CanSpawnBackupBody and inst:CanSpawnBackupBody()) and
-                                not inst.components.revivablecorpse then
-                                inst.sg:GoToState("death_hosted", data)
-                            else
-                                inst.sg:GoToState("death", data)
-                            end
-                        end
-                    else
-                        if inst.sg.statemem.epicmode~="stalker_atrium" and inst.sg.statemem.epicmode~="ancient_hulk" then
-                            local corpse = SpawnPrefab("epic_"..inst.sg.statemem.epicmode.."_corpse")
-                            local x,y,z = inst.Transform:GetWorldPosition()
-                            corpse.Transform:SetPosition(x,y,z)
-                            if inst.sg.statemem.epicmode=="malbatross" and not inst:IsOnPassablePoint()  then
-                                corpse.AnimState:PlayAnimation("death_ocean_idle",true)
-                            end
-                            inst._epic_corpse = corpse
-                        end
-                        inst.sg:GoToState("epic_gravestone_rebirth")
-                    end
+                    --         if inst.shadowthrall_parasite_hosted_death and
+                    --             not inst.components.rider:IsRiding() and
+                    --             not inst:HasAnyTag("beaver", "weremoose", "weregoose") and
+                    --             not inst.charlie_vinesave and
+                    --             not (inst.wx78_backupbody_save and inst.CanSpawnBackupBody and inst:CanSpawnBackupBody()) and
+                    --             not inst.components.revivablecorpse then
+                    --             inst.sg:GoToState("death_hosted", data)
+                    --         else
+                    --             inst.sg:GoToState("death", data)
+                    --         end
+                    --     end
+                    -- else
+                    --     if inst.sg.statemem.epicmode~="stalker_atrium" and inst.sg.statemem.epicmode~="ancient_hulk" then
+                    --         local corpse = SpawnPrefab("epic_"..inst.sg.statemem.epicmode.."_corpse")
+                    --         local x,y,z = inst.Transform:GetWorldPosition()
+                    --         corpse.Transform:SetPosition(x,y,z)
+                    --         if inst.sg.statemem.epicmode=="malbatross" and not inst:IsOnPassablePoint()  then
+                    --             corpse.AnimState:PlayAnimation("death_ocean_idle",true)
+                    --         end
+                    --         inst._epic_corpse = corpse
+                    --     end
+                    --     inst.sg:GoToState("epic_gravestone_rebirth")
+                    -- end
                 end
             end),
         },
@@ -3599,6 +3827,15 @@ AddStategraphState("wilson",State{
                 inst.sg:AddStateTag("noattack")
                 inst.AnimState:PlayAnimation("activate")
                 inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/gears_LP","gears")
+            elseif mode=="sharkboi" then
+                inst.AnimState:PlayAnimation("spawn")
+                inst.SoundEmitter:PlaySound("turnoftides/common/together/water/emerge/large")
+                inst.SoundEmitter:PlaySound("meta3/sharkboi/spawn")
+                inst.Physics:SetMotorVelOverride(7, 0, 0)
+                sharkboi:DoImpactShake(inst)
+            elseif mode=="vault_pillar_guard" then
+                inst.AnimState:PlayAnimation("activate")
+                inst.SoundEmitter:PlaySound("dontstarve/common/together/rocks/crack", nil, 0.8)
             else
                 inst.AnimState:PlayAnimation("taunt")
             end
@@ -3658,6 +3895,8 @@ AddStategraphState("wilson",State{
             FrameEvent(7, function(inst)
                 if inst.sg.statemem.epicmode=="moose" then
                     inst.SoundEmitter:PlaySound(EPIC[inst.sg.statemem.epicmode].sounds.taunt)
+                elseif inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:Shake_Activate(inst)
                 end
             end),
             FrameEvent(8, function(inst)
@@ -3706,11 +3945,16 @@ AddStategraphState("wilson",State{
 			FrameEvent(16, function(inst)
                 if inst.sg.statemem.epicmode=="deerclops" then
                     inst.SoundEmitter:PlaySound(EPIC[inst.sg.statemem.epicmode].sounds.taunt_howl)
+                elseif inst.sg.statemem.epicmode=="sharkboi" then
+                    inst.Physics:SetMotorVelOverride(4, 0, 0)
+                    sharkboi:DoLandingWork(inst)
                 end
             end),
             FrameEvent(17, function(inst)
                 if inst.sg.statemem.epicmode=="moose" then
                     inst.SoundEmitter:PlaySound(EPIC[inst.sg.statemem.epicmode].sounds.flap)
+                elseif inst.sg.statemem.epicmode=="sharkboi" then
+                    inst.Physics:SetMotorVelOverride(2, 0, 0)
                 end
             end),
             FrameEvent(18, function(inst)
@@ -3718,6 +3962,8 @@ AddStategraphState("wilson",State{
                     inst.components.epicscare:Scare(5)
                 elseif inst.sg.statemem.epicmode=="stalker_atrium" then
                     BlinkLow(inst)
+                elseif inst.sg.statemem.epicmode=="sharkboi" then
+                    inst.Physics:SetMotorVelOverride(1, 0, 0)
                 end
             end),
             FrameEvent(19, function(inst)
@@ -3747,6 +3993,10 @@ AddStategraphState("wilson",State{
             FrameEvent(24, function(inst)
                 if inst.sg.statemem.epicmode=="ancient_hulk" then
                     inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro")
+                elseif inst.sg.statemem.epicmode=="sharkboi" then
+                    inst.Physics:ClearMotorVelOverride()
+				    inst.Physics:Stop()
+                    inst.sg:RemoveStateTag("busy")
                 end
             end),
             FrameEvent(26, function(inst)
@@ -3763,6 +4013,9 @@ AddStategraphState("wilson",State{
                 elseif inst.sg.statemem.epicmode=="ancient_hulk" then
                     inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro",nil,.5)
                     inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/ribs/servo", {intensity=math.random()})
+                elseif inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.SoundEmitter:PlaySound("rifts4/worm_boss/rumble")
+                    vpg:Shake_Activate(inst)
                 end
             end),
             FrameEvent(29, function(inst)
@@ -3898,6 +4151,8 @@ AddStategraphState("wilson",State{
                     BlinkMed(inst)
                 elseif inst.sg.statemem.epicmode=="ancient_hulk" then
                     inst.SoundEmitter:SetParameter( "gears", "intensity", 0.4 )
+                elseif inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/atrium/retract")
                 end
             end),
             FrameEvent(51, function(inst)
@@ -3905,6 +4160,8 @@ AddStategraphState("wilson",State{
                     set_lightvalues(inst, 0.5)
                 elseif inst.sg.statemem.epicmode=="stalker_atrium" then
                     BlinkLow(inst)
+                elseif inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:Shake_Lift(inst)
                 end
             end),
             FrameEvent(52, function(inst)
@@ -3912,6 +4169,8 @@ AddStategraphState("wilson",State{
                     set_lightvalues(inst, 0.525)
                 elseif inst.sg.statemem.epicmode=="stalker_atrium" then
                     BlinkOff(inst)
+                elseif inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.SoundEmitter:PlaySound("rifts4/worm_boss/dirt_emerge")
                 end
             end),
             FrameEvent(53, function(inst)
@@ -4031,6 +4290,11 @@ AddStategraphState("wilson",State{
                     inst.SoundEmitter:SetParameter( "gears", "intensity", 1 )
                 end
             end),
+            FrameEvent(78, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.SoundEmitter:PlaySound("daywalker/pillar/hit")
+                end
+            end),
             FrameEvent(79, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase3" then
                     set_lightvalues(inst, 0.4)
@@ -4041,9 +4305,16 @@ AddStategraphState("wilson",State{
                     set_lightvalues(inst, 0.75)
                 end
             end),
+            FrameEvent(82, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoActivateStomp(inst, 2)
+                end
+            end),
             FrameEvent(83, function(inst)
                 if inst.sg.statemem.epicmode=="ancient_hulk" then
                     inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro")
+                elseif inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:Shake_Smallstep(inst)
                 end
             end),
             FrameEvent(84, function(inst)
@@ -4061,6 +4332,21 @@ AddStategraphState("wilson",State{
                     set_lightvalues(inst, 0.85)
                 end
             end),
+            FrameEvent(92, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/rocks/crack", nil, 0.6)
+                end
+            end),
+            FrameEvent(93, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:Shake_Light(inst)
+                end
+            end),
+            FrameEvent(95, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:DoActivateStomp(inst, 3.5)    
+                end
+            end),
             FrameEvent(97, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase3" then
                     set_lightvalues(inst, 0.6)
@@ -4076,6 +4362,13 @@ AddStategraphState("wilson",State{
                     set_lightvalues(inst, 0.9)
                 elseif inst.sg.statemem.epicmode=="ancient_hulk" then
                     inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/leg/step")
+                elseif inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/rocks/crack", nil, 0.6)
+                end
+            end),
+            FrameEvent(102, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:Shake_Light(inst)
                 end
             end),
             FrameEvent(103, function(inst)
@@ -4098,6 +4391,11 @@ AddStategraphState("wilson",State{
                     inst.SoundEmitter:PlaySound("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/electro",nil,.25)
                 end
             end),
+            FrameEvent(118, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:Shake_Activate(inst)
+                end
+            end),
             FrameEvent(125, function(inst)
                 if inst.sg.statemem.epicmode=="alterguardian_phase3" then
                     set_lightvalues(inst, 0.9)
@@ -4106,6 +4404,26 @@ AddStategraphState("wilson",State{
                     inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/bearger/step_soft")
                 elseif inst.sg.statemem.epicmode=="ancient_hulk" then
                     inst.SoundEmitter:PlaySoundWithParams("mnh_ancient_hulk_sound/creatures/boss/hulk_metal_robot/ribs/servo", {intensity=math.random()})
+                end
+            end),
+            FrameEvent(137, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.SoundEmitter:PlaySound("dontstarve/common/together/atrium/retract", nil, 0.8)
+                end
+            end),
+            FrameEvent(139, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.SoundEmitter:PlaySound("rifts6/rock_pillar/fall")
+                end
+            end),
+            FrameEvent(141, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    vpg:Shake_Activate(inst)
+                end
+            end),
+            FrameEvent(147, function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.SoundEmitter:PlaySound("rifts7/pillar_guard/voice_activate")
                 end
             end),
             FrameEvent(150, function(inst)
@@ -4193,6 +4511,9 @@ AddStategraphState("wilson",State{
                 end
             elseif inst.sg.statemem.epicmode=="ancient_hulk" then
                 inst.components.health:SetInvincible(false)
+            elseif inst.sg.statemem.epicmode=="sharkboi" then
+                inst.Physics:ClearMotorVelOverride()
+			    inst.Physics:Stop()
             end
             inst.SoundEmitter:KillSound("mutated_loop")
         end
@@ -4218,6 +4539,17 @@ AddStategraphState("wilson",State{
             elseif mode=="mutatedwarg" then
                 inst.AnimState:PlayAnimation("howl")
                 inst.SoundEmitter:PlaySound("rifts3/mutated_varg/howl")
+            elseif mode=="sharkboi" then
+                inst.Transform:SetSixFaced()
+                inst.AnimState:PlayAnimation("sharkboi_talk_pre")
+				inst.AnimState:PushAnimation("sharkboi_talk", false)
+                inst.AnimState:PushAnimation("sharkboi_talk_pst",false)
+                inst.SoundEmitter:PlaySound("meta3/sharkboi/talk")
+            elseif mode=="vault_pillar_guard" then
+                local anim = "idle"..tostring(math.random(2, 3))
+                inst.AnimState:PlayAnimation(anim.."_pre")
+                inst.AnimState:PushAnimation(anim.."_loop")
+                inst.AnimState:PushAnimation(anim.."_pst")
             else
                 inst.AnimState:PlayAnimation("taunt")
             end
@@ -4367,6 +4699,11 @@ AddStategraphState("wilson",State{
 
         events =
         {
+            EventHandler("attacked", function(inst)
+                if inst.sg.statemem.epicmode=="vault_pillar_guard" then
+                    inst.sg:RemoveStateTag("busy")
+                end
+            end),
             EventHandler("animover", function(inst)
                 if inst.AnimState:AnimDone() then
                     inst.sg:GoToState("epic_idle")
@@ -4375,187 +4712,11 @@ AddStategraphState("wilson",State{
         },
 
         onexit = function (inst)
-
+            if inst.sg.statemem.epicmode=="sharkboi" then
+                inst.Transform:SetFourFaced()
+            end
         end
     })
-
-AddStategraphState("wilson",State{
-        name = "deerclops_laserbeam",
-        tags = { "busy","epic_skill","attack","epic" },
-
-        onenter = function(inst)
-            inst.Physics:Stop()
-            inst.Light:Enable(true)
-			inst.AnimState:SetBuild("deerclops_yule")
-            inst.AnimState:PlayAnimation("atk2")
-			inst.Transform:SetEightFaced()
-			local buffaction = inst:GetBufferedAction()
-            if buffaction then
-				if buffaction.pos then
-					inst:ForceFacePoint(buffaction:GetActionPoint():Get())
-					inst._facepoint_x,inst._facepoint_y,inst._facepoint_z = buffaction:GetActionPoint():Get()
-                elseif buffaction.target and buffaction.target:IsValid() then
-                    local x, y, z = buffaction.target.Transform:GetWorldPosition()
-                    inst:ForceFacePoint(x, y, z)
-                    inst._facepoint_x, inst._facepoint_y, inst._facepoint_z = x, y, z
-                end
-			end
-
-            inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/charge")
-        end,
-
-        onupdate = function(inst)
-            if inst._facepoint_x and inst._facepoint_y and inst._facepoint_z then
-                inst:ForceFacePoint(inst._facepoint_x, inst._facepoint_y, inst._facepoint_z)
-            end
-            if inst.sg.statemem.lightval then
-                inst.sg.statemem.lightval = inst.sg.statemem.lightval * .99
-                SetLightValueAndOverride(inst, inst.sg.statemem.lightval, (inst.sg.statemem.lightval - 1) * 3)
-            end
-        end,
-
-        timeline =
-        {
-			TimeEvent(FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/attack", nil) end),
-			TimeEvent(4 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/step", nil, .7) end),
-            TimeEvent(6 * FRAMES, function(inst)
-                ShakeAllCameras(CAMERASHAKE.VERTICAL, .2, .02, .5, inst, 40)
-                SetLightValue(inst, .97)
-            end),
-            TimeEvent(7 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1, .2) end),
-            TimeEvent(8 * FRAMES, function(inst) SetLightValueAndOverride(inst, .99, .15) end),
-            TimeEvent(9 * FRAMES, function(inst) SetLightValueAndOverride(inst, .97, .05) end),
-            TimeEvent(10 * FRAMES, function(inst) SetLightValueAndOverride(inst, .96, 0) end),
-            TimeEvent(11 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.01, .35) end),
-            TimeEvent(12 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1, .3) end),
-            TimeEvent(13 * FRAMES, function(inst) SetLightValueAndOverride(inst, .95, .05) end),
-            TimeEvent(14 * FRAMES, function(inst) SetLightValueAndOverride(inst, .94, 0) end),
-            TimeEvent(15 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1, .3) end),
-            TimeEvent(16 * FRAMES, function(inst) SetLightValueAndOverride(inst, .99, .25) end),
-            TimeEvent(17 * FRAMES, function(inst) SetLightValueAndOverride(inst, .92, .05) end),
-            TimeEvent(18 * FRAMES, function(inst)
-                SetLightValueAndOverride(inst, .9, 0)
-				inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/taunt_howl", nil, .4)
-            end),
-            TimeEvent(19 * FRAMES, function(inst)
-                inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/laser")
-                SpawnLaser(inst)
-                SetLightValueAndOverride(inst, 1.08, .7)
-            end),
-            TimeEvent(20 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.12, 1) end),
-            TimeEvent(21 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.1, .9) end),
-            TimeEvent(22 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.06, .4) end),
-            TimeEvent(23 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.1, .6) end),
-            TimeEvent(24 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.06, .3) end),
-            TimeEvent(25 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.05, .25) end),
-            TimeEvent(26 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.1, .5) end),
-            TimeEvent(27 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.08, .45) end),
-            TimeEvent(28 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.05, .2) end),
-            TimeEvent(29 * FRAMES, function(inst) SetLightValueAndOverride(inst, 1.1, .3) end),
-            TimeEvent(30 * FRAMES, function(inst)
-                inst.sg.statemem.lightval = 1.1
-            end),
-            TimeEvent(32 * FRAMES, function(inst)
-				inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/taunt_grrr", nil, .5)
-                inst.sg.statemem.lightval = 1.035
-                SetLightColour(inst, .9)
-            end),
-            TimeEvent(33 * FRAMES, function(inst) SetLightColour(inst, .8) end),
-			TimeEvent(41 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/deerclops/step", nil, .7) end),
-            TimeEvent(43 * FRAMES, function(inst)
-                ShakeAllCameras(CAMERASHAKE.VERTICAL, .3, .02, .7, inst, 40)
-            end),
-            TimeEvent(47 * FRAMES, function(inst)
-                inst.sg.statemem.lightval = nil
-                SetLightValueAndOverride(inst, .9, 0)
-                SetLightColour(inst, .9)
-            end),
-            TimeEvent(48 * FRAMES, function(inst)
-                inst.sg:RemoveStateTag("busy")
-                SetLightValue(inst, 1)
-                SetLightColour(inst, 1)
-            end),
-        },
-
-        events =
-        {
-            EventHandler("animover", function(inst)
-                inst.sg.statemem.keepfacing = true
-                inst.sg:GoToState("epic_idle")
-            end),
-        },
-
-        onexit = function(inst)
-            SetLightValueAndOverride(inst, 1, 0)
-            SetLightColour(inst, 1)
-			inst.Transform:SetFourFaced()
-        end,
-    })
-
-AddStategraphState("wilson",State{
-		name = "bearger_pound",
-		tags = { "attack", "busy","epic_skill","epic" },
-
-		onenter = function(inst)
-			inst.components.locomotor:StopMoving()
-			inst.AnimState:PlayAnimation("ground_pound")
-            inst.AnimState:PushAnimation("to_bi",false)
-		end,
-
-		timeline =
-		{
-			FrameEvent(13, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/bearger/swhoosh") end),
-			FrameEvent(20, function(inst)
-				ShakeIfClose_Pound(inst)
-				inst.components.groundpounder:GroundPound()
-				inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/bearger/groundpound")
-			end),
-		},
-
-		events =
-		{
-			EventHandler("animover", function(inst)
-				if inst.AnimState:AnimDone() then
-					inst.sg:GoToState("epic_idle")
-				end
-			end),
-		},
-	})
-
-AddStategraphState("wilson",State{
-		name = "bearger_yawn",
-		tags = { "yawn", "busy","epic_skill","epic","pausepredict","bearger_yawn" },
-
-		onenter = function(inst)
-			inst.components.locomotor:StopMoving()
-			inst.AnimState:PlayAnimation("yawn")
-			inst.AnimState:PushAnimation( "yawn_pst", false)
-			if inst.components.playercontroller then
-                inst.components.playercontroller:RemotePausePrediction()
-            end
-		end,
-
-		timeline =
-		{
-			FrameEvent(22, function(inst)
-				inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/bearger/yawn")
-			end),
-			FrameEvent(50, yawnfn),
-			FrameEvent(65, function(inst)
-				inst.sg:RemoveStateTag("busy")
-				inst.sg:AddStateTag("canrotate")
-			end),
-		},
-
-		events =
-		{
-			EventHandler("animqueueover", function(inst)
-				if inst.AnimState:AnimDone() then
-					inst.sg:GoToState("epic_idle")
-				end
-			end),
-		},
-	})
 
 AddStategraphState("wilson",State{
 		name = "moose_spin_pre",
@@ -4730,51 +4891,6 @@ AddStategraphState("wilson",State{
 		},
 	})
 
-AddStategraphState("wilson",State{
-		name = "moose_meep",
-		tags = {"busy","epic","epic_skill","moose_meep","pausepredict",},
-
-		onenter = function(inst)
-			inst.Physics:Stop()
-			inst.AnimState:PlayAnimation("meep")
-            if inst.components.playercontroller then
-                inst.components.playercontroller:RemotePausePrediction()
-            end
-		end,
-
-		timeline=
-		{
-			TimeEvent(7*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mossling/flap") end),
-			TimeEvent(10*FRAMES, function(inst)
-                if TheWorld.state.season=="spring" then
-                    if inst.moose_meep_num then
-                        inst.moose_meep_num = inst.moose_meep_num + 1
-                    else
-                        inst.moose_meep_num = 0
-                    end
-                    if inst.moose_meep_num>=10 then
-                        local moose = SpawnPrefab("moose")
-                        local x,y,z = inst.Transform:GetWorldPosition()
-                        local x_offset = math.random(-3,3)
-                        local z_offset = math.random(-3,3)
-                        moose.Transform:SetPosition(x+x_offset,10,z+z_offset)
-                        moose.sg:GoToState("glide")
-                        inst.moose_meep_num = -30
-                    end
-                end
-            end),
-			TimeEvent(10*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mossling/honk") end),
-			TimeEvent(11*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mossling/flap") end),
-			TimeEvent(15*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mossling/flap") end),
-			TimeEvent(19*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mossling/flap") end),
-			TimeEvent(23*FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mossling/flap") end),
-		},
-
-		events=
-		{
-			EventHandler("animover", function(inst) inst.sg:GoToState("epic_idle") end),
-		},
-	})
 ---antlion
 AddStategraphState("wilson",State{
         name = "antlion_jumpin_out",
@@ -4934,79 +5050,6 @@ AddStategraphState("wilson",State{
                 inst.sg:RemoveStateTag("nosleep")
                 inst.sg:RemoveStateTag("nofreeze")
             end),
-        },
-
-        events =
-        {
-            EventHandler("animover", function(inst)
-                if inst.AnimState:AnimDone() then
-                    inst.sg:GoToState("epic_idle")
-                end
-            end),
-        },
-    })
-
-AddStategraphState("wilson",State{
-        name = "antlion_hightributeresponse",
-        tags = { "busy" ,"epic","epic_skill","pausepredict","antlion_hightributeresponse"},
-
-        onenter = function(inst)
-            inst.AnimState:PlayAnimation("full_pre")
-            inst.AnimState:PushAnimation("full_loop", false)
-            inst.AnimState:PushAnimation("full_pst", false)
-            if inst.components.playercontroller then
-                inst.components.playercontroller:RemotePausePrediction()
-            end
-        end,
-
-        timeline =
-        {
-            TimeEvent(0, function(inst)
-                inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/purr")
-                inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/rub")
-            end),
-            TimeEvent(16 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/rub") end),
-            TimeEvent(30 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/rub") end),
-            TimeEvent(46 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/rub") end),
-        },
-
-        events =
-        {
-            EventHandler("animqueueover", function(inst)
-                if inst.AnimState:AnimDone() then
-                    inst.sg:GoToState("epic_idle")
-                end
-            end),
-        },
-    })
-
-AddStategraphState("wilson",State{
-        name = "antlion_eat",
-        tags = { "busy", "caninterrupt","epic","epic_skill","pausepredict","antlion_eat" },
-
-        onenter = function(inst)
-            inst.AnimState:PlayAnimation("eat")
-            inst.components.burnable:Extinguish()
-            if inst.components.playercontroller then
-                inst.components.playercontroller:RemotePausePrediction()
-            end
-        end,
-
-        timeline =
-        {
-            TimeEvent(12 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/eat") end),
-            TimeEvent(36 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/eat") end),
-            TimeEvent(38 * FRAMES, function(inst)
-                if not inst.components.health:IsDead() then
-                    inst.components.health:DoDelta(TUNING.ANTLION_EAT_HEALING*TUNING.EPIC_WORLD.HEALTH)
-                end
-            end),
-            TimeEvent(59 * FRAMES, function(inst)
-                if not inst.components.health:IsDead() then
-                    inst.components.health:DoDelta(TUNING.ANTLION_EAT_HEALING*TUNING.EPIC_WORLD.HEALTH)
-                end
-            end),
-            TimeEvent(71 * FRAMES, function(inst) inst.SoundEmitter:PlaySound("dontstarve/creatures/together/antlion/swallow") end),
         },
 
         events =
@@ -6540,7 +6583,7 @@ AddStategraphState("wilson",State {
 
 AddStategraphState("wilson",State {
         name = "epic_spin_loop",
-        tags = {"busy", "spin","pausepredict","epic","epic_skill"},
+        tags = {"busy", "spin","nopredict","epic","epic_skill"},
 
         onenter = function(inst, data)
             inst.components.locomotor:Stop()
@@ -6560,9 +6603,9 @@ AddStategraphState("wilson",State {
 
             inst.Physics:SetMotorVelOverride(data.speed, 0, 0)
 
-            if inst.components.playercontroller ~= nil then
-				inst.components.playercontroller:RemotePausePrediction()
-            end
+            -- if inst.components.playercontroller ~= nil then
+			-- 	inst.components.playercontroller:RemotePausePrediction()
+            -- end
         end,
 
         onupdate = function(inst, dt)
@@ -6638,7 +6681,7 @@ AddStategraphState("wilson",State {
 
 AddStategraphState("wilson",State {
         name = "epic_spin_pst",
-        tags = {"busy", "spin","spin","pausepredict","epic","epic_skill"},
+        tags = {"busy", "spin","spin","nopredict","epic","epic_skill"},
 
         onenter = function(inst, speed)
             inst.components.locomotor:Stop()

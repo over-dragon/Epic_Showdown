@@ -11,6 +11,8 @@ Assets = {
 	Asset("ATLAS", "images/epickeepsake_filter.xml"),
     Asset("IMAGE","images/epicorigin_filter.tex"),
 	Asset("ATLAS", "images/epicorigin_filter.xml"),
+    Asset("ATLAS", "images/inventoryimages/epic_showdown_images.xml"),
+    Asset("ATLAS_BUILD", "images/inventoryimages/epic_showdown_images.xml", 256),
     Asset("SOUNDPACKAGE", "sound/epic_castselect_icons.fev"),
     Asset("SOUND", "sound/epic_castselect_icons.fsb"),
     Asset("SOUNDPACKAGE", "sound/mnh_ancient_hulk_sound.fev"),
@@ -33,6 +35,21 @@ PrefabFiles = {
     "epic_chaosseed",
     "ancient_hulk_laser",
 }
+
+local keepsake = require("epic_keepsakes")
+local inventory_images = { "epic_chaosseed" }
+
+for _, v in ipairs(keepsake) do
+    table.insert(inventory_images,v.name.."_keepsake")
+    table.insert(inventory_images,v.name.."_origin")
+end
+
+local atlas = resolvefilepath("images/inventoryimages/epic_showdown_images.xml")
+for _, v in ipairs(inventory_images) do
+    local image = v..".tex"
+    RegisterInventoryItemAtlas(atlas,image)
+    RegisterInventoryItemAtlas(atlas,hash(image))
+end
 
 AddReplicableComponent("wereepic")
 

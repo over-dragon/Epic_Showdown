@@ -13,6 +13,9 @@ local EPIC_LMB_ACTIONS =
 local EPIC_TARGET_EXCLUDE_TAGS = { "FX", "NOCLICK", "DECOR", "INLIMBO", "catchable", "sign" }
 
 local function GetEpicAction(inst, target,left)
+    if inst:HasTag("sharkboi_fin") then
+        return nil
+    end
     for i, v in ipairs(EPIC_LMB_ACTIONS) do
         if target:HasTag(v.."_workable") then
             return not target:HasTag("sign") and (left and inst.components.playeractionpicker:SortActionList({ ACTIONS["EPIC_"..v] }, target, nil) or ACTIONS["EPIC_"..v]) or nil
@@ -22,6 +25,9 @@ end
 
 local function LeftClickPicker(inst, target)
     if target ~= nil and target ~= inst then
+        if inst:HasTag("sharkboi_fin") then
+            return nil
+        end
         if inst.replica.combat:CanTarget(target) then
             return (not target:HasTag("player") or inst.components.playercontroller:IsControlPressed(CONTROL_FORCE_ATTACK))
                 and inst.components.playeractionpicker:SortActionList({ ACTIONS.ATTACK }, target, nil)
@@ -36,6 +42,9 @@ end
 
 local function RightClickPicker(inst, target, pos)
     if target ~= nil and target ~= inst then
+        if inst:HasTag("sharkboi_fin") then
+            return inst.components.playeractionpicker:SortActionList({ ACTIONS.EPIC_SKILL }, target or pos, nil)
+        end
         local actions =
         (   target:HasTag("HAMMER_workable") and
             inst.components.playeractionpicker:SortActionList({ ACTIONS.EPIC_HAMMER }, target, nil)
@@ -69,7 +78,7 @@ local function RightClickPicker(inst, target, pos)
             end
         end
     end
-    return target ~= inst
+    return target ~= inst and not inst:HasTag("epic_noskill0")
         and (
                 not inst.components.playercontroller.isclientcontrollerattached and
                 inst.components.playeractionpicker:SortActionList({ ACTIONS.EPIC_SKILL }, target or pos, nil)
@@ -217,9 +226,13 @@ local WereEpic = Class(function(self, inst)
 
     inst:ListenForEvent("epicdirty", function(inst)
         if self._is_epic:value() then
+            if self.actions_installed then return end
+            self.actions_installed = true
             self:SetEpicVision()
             SetEpicActions(self,true)
         else
+            if not self.actions_installed then return end
+            self.actions_installed = false
             self:ClearEpicVision()
             SetEpicActions(self,false)
         end
@@ -247,7 +260,7 @@ end
 
 function WereEpic:SetEpicVision()
     if self.inst.components.playervision then
-        self.inst.components.playervision:PushForcedNightVision(self.inst, 10, EPICVISION_COLOURCUBES, false)
+        self.inst.components.playervision:PushForcedNightVision("epic_vision", 10, EPICVISION_COLOURCUBES, false)
         if self.inst:HasTag("epic_gogglevision") then
             self.inst.components.playervision:ForceGoggleVision(true)
         end
@@ -256,7 +269,7 @@ end
 
 function WereEpic:ClearEpicVision()
     if self.inst.components.playervision then
-        self.inst.components.playervision:PopForcedNightVision(self.inst)
+        self.inst.components.playervision:PopForcedNightVision("epic_vision")
         self.inst.components.playervision:ForceGoggleVision(false)
     end
 end

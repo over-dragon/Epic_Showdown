@@ -3,8 +3,10 @@ local EPIC = require("wereepic_skill")
 AddModRPCHandler("WEREEPIC", "taunt", function(inst)
     if inst and inst.replica.wereepic:IsEpic() then
         local mode = inst.components.wereepic and inst.components.wereepic:GetEpicMode()
-        if EPIC[mode] and not inst.sg:HasAnyStateTag("epic_death","epic_taunt","busy") and not inst.components.spellbookcooldowns:IsInCooldown("epic_taunt") then
-            inst.sg:GoToState("epic_taunt")
+        if mode=="sharkboi" and inst:HasTag("sharkboi_fin") then
+            return
+        elseif EPIC[mode] and not inst.sg:HasAnyStateTag("epic_death","epic_taunt","busy") and not inst.components.spellbookcooldowns:IsInCooldown("epic_taunt") then
+            inst.sg:GoToState(EPIC_SHOWDOWN_TUNING.EPIC_TAUNT[mode] or "epic_taunt")
             inst.components.spellbookcooldowns:RestartSpellCooldown("epic_taunt", 1)
         end
     end
@@ -26,7 +28,7 @@ AddModRPCHandler("WEREEPIC", "onbecamehuman", function(inst)
             if mode=="stalker_atrium" then
                 inst.sg:GoToState("stalker_atrium_death_pre")
             else
-                inst.sg:GoToState("epic_death")
+                inst.sg:GoToState(EPIC_SHOWDOWN_TUNING.EPIC_DEATH[mode] or "epic_death")
             end
         end
     end

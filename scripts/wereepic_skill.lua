@@ -721,6 +721,108 @@ local WEREEPIC_SKILL = {
             map_teleport = "ancient_hulk_telportout_pre",
         },
     },
+
+    sharkboi = {
+        skill = function (act)
+            return true
+        end,
+
+        sounds = {
+
+        },
+
+        transform = function (inst)
+            if not inst:HasTag("sharkboi_fin") and not inst.sg:HasAnyStateTag("busy","sharkboi_standing_dive_jump_pre") then
+                TransformCool(inst)
+                inst:AddTag("sharkboi_fin")
+                inst.sg:GoToState("sharkboi_standing_dive_jump_pre")
+            elseif inst:HasTag("sharkboi_fin") then
+                TransformCool(inst)
+                inst:AddTag("sharkboi_fin_out")
+            end
+        end,
+
+        skill1 = function (inst)
+            if not inst:HasTag("sharkboi_torpedo") then
+                inst:AddTag("sharkboi_torpedo")
+            end
+            SkillCool(inst,1,20)
+        end,
+
+        stategraphs = {
+            skill0 = function (inst)
+                if inst:HasTag("sharkboi_fin") then
+                    return "sharkboi_dive_jump_pre"
+                elseif inst:HasTag("sharkboi_torpedo") then
+                    return "sharkboi_torpedo_pre"
+                else
+                    return "sharkboi_ice_summon"
+                end
+            end
+        },
+    },
+
+    vault_pillar_guard = {
+        skill = function (act)
+            return true
+        end,
+
+        attack_timeout = 74*FRAMES,
+
+        sounds = {
+
+        },
+
+        stategraphs = {
+            skill0 = "vpg_spin_pre"
+        },
+    },
+
+    klaus = {
+        skill = function (act)
+            return true
+        end,
+
+        sounds = {
+
+        },
+
+        skill1 = function (inst)
+            if not inst.sg:HasAnyStateTag("busy","klaus_transition") and not inst:HasTag("klaus_angery") then
+                inst.sg:GoToState("klaus_transition")
+                SkillCool(inst,1,20)
+            end
+        end,
+
+        stategraphs = {
+            skill0 = "klaus_command_pre"
+        },
+    },
+
+    klaus2 = {
+        skill = function (act)
+            return true
+        end,
+
+        sounds = {
+
+        },
+
+        skill1 = function (inst)
+            inst:AddTag("klaus_attack_chomp")
+            SkillCool(inst,1,6)
+        end,
+
+        stategraphs = {
+            skill0 = function (inst)
+                if inst:HasTag("klaus_attack_chomp") then
+                    return "klaus_attack_chomp"
+                else
+                    return "klaus_command_pre"
+                end
+            end
+        },
+    },
 }
 
 return WEREEPIC_SKILL

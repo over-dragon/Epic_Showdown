@@ -1,7 +1,7 @@
 local modid = 'epic_showdown'
 local cur = (locale == 'zh' or locale == 'zhr') and 'zh' or 'en'
 
-version = '26.08.22.1'
+version = '26.11.04'
 author = 'over_dragon、Guto'
 
 forumthread = ''
@@ -37,7 +37,7 @@ local padop = {
 local LANGS = {
     ['zh'] = {
         name = '史诗对决',
-        description = '史诗对决，BOSS之间的战斗，获取BOSS的力量，变身为BOSS，大杀四方，目前共有17个BOSS。',
+        description = '史诗对决，BOSS之间的战斗，获取BOSS的力量，变身为BOSS，大杀四方，目前共有20个BOSS。',
         config = {
             {'通用'},
             {modid..'_health','生命值倍率','以原版为基础，如果有其它模组修改了常量表那么也会相应改变',0.5,{
@@ -73,7 +73,12 @@ local LANGS = {
                 {'关闭',0},
                 {'开启',1}
             }},
-            {modid..'_mat','主材料数量倍率','取整数',1,{
+            {modid..'_recipes','配方方案','',0,{
+                {'默认',0},
+                {'方案1',1},
+                {'方案2',2}
+            }},
+            {modid..'_mat','默认方案主材料数量倍率','取整数',1,{
                 {'0',0},
                 {'0.5',0.5},
                 {'1',1},
@@ -85,12 +90,12 @@ local LANGS = {
                 {'关闭',0},
                 {'开启',1}
             }},
-            {modid..'_combat_target','仇恨索敌','开启后对于友好生物伤害目标从可以攻击的目标变更为对自身有仇恨或自己仇恨的目标',0,{
+            {modid..'_combat_target','仇恨索敌','开启后对于友好生物伤害目标从可以攻击的目标变更为对自身有仇恨或自己仇恨的目标',1,{
                 {'关闭',0},
                 {'开启',1},
             }},
             {'PVP模式下生效'},
-            {modid..'_keepsake','初始道具','除了无，剩下两个选项会从17个BOSS里面随机抽取',1,{
+            {modid..'_keepsake','初始道具','除了无，剩下两个选项会从BOSS池里面随机抽取',1,{
                 {'无',0},
                 {'信物',1},
                 {'本源',2},
@@ -109,7 +114,7 @@ local LANGS = {
     },
     ['en'] = {
         name = 'Epic Showdown',
-        description = 'Epic Showdown - Battle among BOSSes. Harness their power, transform into a BOSS, and dominate the battlefield. Currently supports 17 BOSSes.',
+        description = 'Epic Showdown - Battle among BOSSes. Harness their power, transform into a BOSS, and dominate the battlefield. Currently supports 20 BOSSes.',
         config = {
             {'General'},
             {modid..'_health','Health Multiplier','Based on vanilla values. If other mods modify the constant tables, this will change accordingly.',0.5,{
@@ -145,7 +150,12 @@ local LANGS = {
                 {'Disabled',0},
                 {'Enabled',1}
             }},
-            {modid..'_mat','Main Material Quantity Multiplier','Values are rounded to integers.',1,{
+            {modid..'_recipes','Recipe Scheme','',0,{
+                {'Default',0},
+                {'Scheme 1',1},
+                {'Scheme 2',2}
+            }},
+            {modid..'_mat','Default Scheme Main Material Quantity Multiplier','Rounded to integer',1,{
                 {'0',0},
                 {'0.5',0.5},
                 {'1',1},
@@ -157,12 +167,12 @@ local LANGS = {
                 {'Disabled',0},
                 {'Enabled',1}
             }},
-            {modid..'_combat_target','Aggro Targeting','When enabled, damage targets for friendly creatures are changed from any attackable target to only those that have aggro on you or that you are hostile to.',0,{
+            {modid..'_combat_target','Aggro Targeting','When enabled, damage targets for friendly creatures are changed from any attackable target to only those that have aggro on you or that you are hostile to.',1,{
                 {'Disabled',0},
                 {'Enabled',1},
             }},
             {'Effective in PVP Mode'},
-            {modid..'_keepsake','Starting Item','Except for "None", the other two options will be randomly selected from the 17 BOSSes.',1,{
+            {modid..'_keepsake','Starting Item','Aside from "None", the other two options will be randomly selected from the boss pool.',1,{
                 {'None',0},
                 {'Keepsake',1},
                 {'Essence',2},

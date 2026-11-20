@@ -1,0 +1,22 @@
+-- local ex_fns = require "prefabs/player_common_extensions"
+-- local EPIC = require("wereepic_boss")
+
+-- local old_OnPlayerDeath = ex_fns.OnPlayerDeath
+-- ex_fns.OnPlayerDeath = function (inst,data)
+--     if inst:HasTag("playerghost") then
+--         return
+--     end
+--     if inst:HasTag("epic") then
+--         local mode = inst.components.wereepic and inst.components.wereepic:GetEpicMode()
+--         local boss = EPIC[mode]
+--         if boss and boss.nextmode and boss.nextmode.condition(inst) then
+--             inst:AddTag("epic_nextmode")
+--             if data==nil then
+--                 data = {}
+--             end
+--             data.epic_nextmode = boss.nextmode.mode
+--             return
+--         end
+--     end
+--     return old_OnPlayerDeath(inst,data)
+-- end

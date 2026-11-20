@@ -167,6 +167,16 @@ local function DoEpicWork(act, workaction)
     return true
 end
 
+local function AttackState(inst,action)
+    local mode = inst.components.wereepic and inst.components.wereepic:GetEpicMode()
+    return EPIC_SHOWDOWN_TUNING.EPIC_ATTACK[mode] or "epic_attack"
+end
+
+local function AttackStateClient(inst,action)
+    local mode = inst.replica.wereepic:GetEpicMode()
+    return EPIC_SHOWDOWN_TUNING.EPIC_ATTACK[mode] or "epic_attack"
+end
+
 local EPIC_CHOP = Action()
 EPIC_CHOP.id = "EPIC_CHOP"
 EPIC_CHOP.strfn = function (act)
@@ -254,16 +264,16 @@ STRINGS.ACTIONS.EPIC_SCYTHE = {
     EPIC_SCYTHE = STRINGS.EPIC_ACTIONS_NAMED.SCYTHE
 }
 
-AddStategraphActionHandler("wilson", ActionHandler(ACTIONS.EPIC_CHOP, "epic_attack"))
-AddStategraphActionHandler("wilson_client", ActionHandler(ACTIONS.EPIC_CHOP, "epic_attack"))
-AddStategraphActionHandler("wilson", ActionHandler(ACTIONS.EPIC_MINE, "epic_attack"))
-AddStategraphActionHandler("wilson_client", ActionHandler(ACTIONS.EPIC_MINE, "epic_attack"))
-AddStategraphActionHandler("wilson", ActionHandler(ACTIONS.EPIC_DIG, "epic_attack"))
-AddStategraphActionHandler("wilson_client", ActionHandler(ACTIONS.EPIC_DIG, "epic_attack"))
-AddStategraphActionHandler("wilson", ActionHandler(ACTIONS.EPIC_HAMMER, "epic_attack"))
-AddStategraphActionHandler("wilson_client", ActionHandler(ACTIONS.EPIC_HAMMER, "epic_attack"))
-AddStategraphActionHandler("wilson", ActionHandler(ACTIONS.EPIC_SCYTHE, "epic_attack"))
-AddStategraphActionHandler("wilson_client", ActionHandler(ACTIONS.EPIC_SCYTHE, "epic_attack"))
+AddStategraphActionHandler("wilson", ActionHandler(ACTIONS.EPIC_CHOP, AttackState))
+AddStategraphActionHandler("wilson_client", ActionHandler(ACTIONS.EPIC_CHOP, AttackStateClient))
+AddStategraphActionHandler("wilson", ActionHandler(ACTIONS.EPIC_MINE, AttackState))
+AddStategraphActionHandler("wilson_client", ActionHandler(ACTIONS.EPIC_MINE, AttackStateClient))
+AddStategraphActionHandler("wilson", ActionHandler(ACTIONS.EPIC_DIG, AttackState))
+AddStategraphActionHandler("wilson_client", ActionHandler(ACTIONS.EPIC_DIG, AttackStateClient))
+AddStategraphActionHandler("wilson", ActionHandler(ACTIONS.EPIC_HAMMER, AttackState))
+AddStategraphActionHandler("wilson_client", ActionHandler(ACTIONS.EPIC_HAMMER, AttackStateClient))
+AddStategraphActionHandler("wilson", ActionHandler(ACTIONS.EPIC_SCYTHE, AttackState))
+AddStategraphActionHandler("wilson_client", ActionHandler(ACTIONS.EPIC_SCYTHE, AttackStateClient))
 
 local EPIC_SKILL = Action()
 EPIC_SKILL.id = "EPIC_SKILL"
@@ -287,7 +297,7 @@ STRINGS.ACTIONS.EPIC_SKILL = {
 }
 
 AddStategraphActionHandler("wilson", ActionHandler(ACTIONS.EPIC_SKILL, function(inst, action)
-        local mode = inst.replica.wereepic:GetEpicMode()
+        local mode = inst.components.wereepic and inst.components.wereepic:GetEpicMode()
         local skill0 = EPIC[mode].stategraphs.skill0
         if type(skill0)=="function" then
             return skill0(inst)

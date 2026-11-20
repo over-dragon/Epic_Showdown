@@ -199,6 +199,67 @@ for i, v in ipairs(CHARGE_ITEMS) do
     end)
 end
 
+local COMMAND_DEER = {"deer_red","deer_blue"}
+
+local SPELL_OVERLAP_MIN = 3
+local SPELL_OVERLAP_MAX = 6
+local NOSPELLOVERLAP_ONEOF_TAGS = { "deer_ice_circle", "deer_fire_circle" }
+local function NoSpellOverlap(x, y, z, r)
+    return #TheSim:FindEntities(x, 0, z, r or SPELL_OVERLAP_MIN, nil, nil, NOSPELLOVERLAP_ONEOF_TAGS) <= 0
+end
+
+local SPELL_MAX_TARGETS = 20
+local SPELLTARGET_MUST_TAGS = { "_combat", "_health" }
+local SPELLTARGET_CANT_TAGS = { "INLIMBO", "playerghost", "deergemresistance", "notarget" }
+for _, deer in ipairs(COMMAND_DEER) do
+    AddPrefabPostInit(deer, function(inst)
+        if not TheWorld.ismastersim then
+            return inst
+        end
+        local old_FindCastTargets = inst.FindCastTargets
+        inst.FindCastTargets = function (inst, target)
+            local keeper = inst.components.entitytracker:GetEntity("keeper")
+            if keeper and keeper:IsValid() and keeper:HasTag("player") and keeper:HasTag("epic") then
+                if target ~= nil then
+                    --Single target for deer without keeper
+                    return target.components.health ~= nil
+                        and not (target.components.health:IsDead() or
+                                target:HasTag("playerghost") or
+                                target:HasTag("deergemresistance"))
+                        and target:IsNear(inst, TUNING.DEER_GEMMED_CAST_RANGE)
+                        and NoSpellOverlap(target.Transform:GetWorldPosition())
+                        and { target }
+                        or nil
+                end
+                --Multi-target when receiving commands from keeper
+                local x, y, z = inst.Transform:GetWorldPosition()
+                local targets = {}
+                local priorityindex = 1
+                for i, v in ipairs(TheSim:FindEntities(x, y, z, TUNING.DEER_GEMMED_CAST_RANGE, SPELLTARGET_MUST_TAGS, SPELLTARGET_CANT_TAGS)) do
+                    if not v.components.health:IsDead() then
+                        if keeper.components.combat:CanTarget(v) then
+                            table.insert(targets, priorityindex, v)
+                            if #targets >= SPELL_MAX_TARGETS then
+                                return targets
+                            end
+                            priorityindex = priorityindex + 1
+                        elseif v.components.combat.target ~= nil and v.components.combat.target:HasTag("deergemresistance") then
+                            table.insert(targets, v)
+                            if #targets >= SPELL_MAX_TARGETS then
+                                return targets
+                            end
+                        end
+                    end
+                end
+                return #targets > 0 and targets or nil
+            else
+                return old_FindCastTargets(inst,target)
+            end
+        end
+    end)
+end
+
+
 -- local hound = { "hound","firehound","icehound" }
 -- for i, v in ipairs(hound) do
 --     AddPrefabPostInit(v, function(inst)
@@ -279,3 +340,21 @@ end
 --         end
 --     end
 -- end)
+
+---兼容侏儒统治熊獾
+AddPrefabPostInit("wearger", function(inst)
+    if not TheWorld.ismastersim then
+		return inst
+	end
+    local old_OnSave = inst.OnSave
+    inst.OnSave = function (inst,data,...)
+        if old_OnSave then
+            old_OnSave(inst,data,...)
+        end
+        local wereepic = inst.components.wereepic or nil
+        local health = inst.components.health or nil
+        if wereepic and wereepic:IsEpic() and health and data then
+            data._wearger_health = health.currenthealth/health.maxhealth*wereepic.maxhealth
+        end
+    end
+end)

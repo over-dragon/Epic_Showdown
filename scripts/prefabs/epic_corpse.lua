@@ -32,6 +32,10 @@ local function MakeCorpse(name,data)
             inst.AnimState:PlayAnimation("death3")
         elseif name=="ancient_hulk" then
             inst.AnimState:PlayAnimation("death")
+        elseif name=="sharkboi" then
+            inst.AnimState:PlayAnimation("defeated_loop", true)
+        elseif name=="vault_pillar_guard" then
+            inst.AnimState:PlayAnimation("death")
         else
             inst.AnimState:PlayAnimation("corpse")
         end
